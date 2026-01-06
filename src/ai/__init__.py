@@ -6,13 +6,26 @@ the Gemini API — no other file should import google-generativeai.
 
 Exports:
     - AIClient: Main client for Gemini API communication
+    - LifeStoryAnalyzer: Orchestrates Memory → AI → Report flow
     - get_client: Factory function to create configured client
     - require_ai: Decorator for functions requiring AI
     - AIResponse: Standardized response model
     - StructuredResponse: Response model for JSON outputs
+    - LifeStoryReport: Complete analysis report
+    - LifeChapter: Individual life chapter
     - Exception hierarchy for typed error handling
 """
 
+from src.ai.analyzer import (
+    # Analyzer
+    LifeStoryAnalyzer,
+    # Report models
+    LifeStoryReport,
+    LifeChapter,
+    # Exceptions
+    AnalysisError,
+    InsufficientDataError,
+)
 from src.ai.client import (
     # Main client
     AIClient,
@@ -41,6 +54,12 @@ from src.ai.client import (
 )
 
 __all__ = [
+    # Analyzer
+    "LifeStoryAnalyzer",
+    "LifeStoryReport",
+    "LifeChapter",
+    "AnalysisError",
+    "InsufficientDataError",
     # Client
     "AIClient",
     "get_client",
