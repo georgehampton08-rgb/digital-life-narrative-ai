@@ -1,0 +1,53 @@
+[tool.poetry]
+name = "digital-life-narrative-ai"
+version = "0.1.0"
+description = "AI-first universal data dump organizer that reconstructs your life narrative from scattered media exports"
+authors = ["[Your Name] <your@email.com>"]
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/your-username/digital-life-narrative-ai"
+packages = [{ include = "organizer" }]
+
+[tool.poetry.scripts]
+organizer = "organizer.cli:main"
+
+[tool.poetry.dependencies]
+python = ">=3.10,<4.0"
+click = ">=8.1.0"
+pillow = ">=10.0.0"
+pyyaml = ">=6.0"
+keyring = ">=24.0.0"
+cryptography = ">=41.0.0"
+google-generativeai = ">=0.3.0"
+pydantic = ">=2.0.0"
+rich = ">=13.0.0"
+jinja2 = ">=3.1.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = ">=7.4.0"
+pytest-cov = ">=4.1.0"
+pytest-asyncio = ">=0.21.0"
+black = ">=23.0.0"
+ruff = ">=0.1.0"
+mypy = ">=1.5.0"
+types-pyyaml = "*"
+types-pillow = "*"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 100
+
+[tool.ruff]
+line-length = 100
+select = ["E", "F", "I", "W", "UP", "B", "C4", "SIM"]
+
+[tool.mypy]
+strict = true
+python_version = "3.10"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=organizer --cov-report=term-missing"
