@@ -6,7 +6,7 @@ authors = ["George Hampton <georgehampton08@gmail.com>"]
 license = "MIT"
 readme = "README.md"
 repository = "https://github.com/georgehampton08-rgb/digital-life-narrative-ai.git"
-packages = [{ include = "organizer" }]
+packages = [{ include = "organizer" }, { include = "src" }]
 
 [tool.poetry.scripts]
 organizer = "organizer.cli:main"
@@ -20,8 +20,10 @@ keyring = ">=24.0.0"
 cryptography = ">=41.0.0"
 google-generativeai = ">=0.3.0"
 pydantic = ">=2.0.0"
+pydantic-settings = ">=2.0.0"
 rich = ">=13.0.0"
 jinja2 = ">=3.1.0"
+
 
 [tool.poetry.group.dev.dependencies]
 pytest = ">=7.4.0"

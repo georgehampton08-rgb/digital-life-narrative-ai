@@ -1,0 +1,18 @@
+{
+  "session_id": "204b6148-640f-48ed-934b-fcaa0feab770",
+  "privacy_level": "standard",
+  "consent_status": "granted",
+  "transmissions": [
+    {
+      "id": "ca6aaaa7-c543-4f4f-8b13-cea972abd3f6",
+      "timestamp": "2026-01-06T22:23:47.832672+00:00",
+      "destination": "gemini-1.5-pro",
+      "memory_count": 2,
+      "categories": [
+        "media_type",
+        "timestamp"
+      ],
+      "success": true
+    }
+  ]
+}
