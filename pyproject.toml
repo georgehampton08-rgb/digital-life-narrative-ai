@@ -2,10 +2,10 @@
 name = "digital-life-narrative-ai"
 version = "0.1.0"
 description = "AI-first universal data dump organizer that reconstructs your life narrative from scattered media exports"
-authors = ["[Your Name] <your@email.com>"]
+authors = ["George Hampton <georgehampton08@gmail.com>"]
 license = "MIT"
 readme = "README.md"
-repository = "https://github.com/your-username/digital-life-narrative-ai"
+repository = "https://github.com/georgehampton08-rgb/digital-life-narrative-ai.git"
 packages = [{ include = "organizer" }]
 
 [tool.poetry.scripts]
