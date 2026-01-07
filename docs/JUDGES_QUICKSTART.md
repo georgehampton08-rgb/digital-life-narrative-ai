@@ -28,11 +28,24 @@ That's it! The demo script will:
 
 ## 🔑 About the API Key
 
-**A shared Gemini API key is pre-configured** in `.env.example` specifically for hackathon evaluation. You don't need to get your own key for testing.
+**You will receive a shared Gemini API key separately** (via email, Slack, or the judging platform) specifically for hackathon evaluation.
 
-The key is: `AIzaSyCezXkLMSQ0bXFUCMxZqVTvUXafxPQRVxc`
+**To configure it:**
 
-This is already set in the template, so the demo script will automatically use it.
+1. Copy `.env.example` to `.env`:
+
+   ```bash
+   cp .env.example .env
+   ```
+
+2. Edit `.env` and paste the provided key:
+
+   ```bash
+   # Edit the file and add your key after GEMINI_API_KEY=
+   nano .env  # or use any text editor
+   ```
+
+The demo script will automatically detect and use the key once configured.
 
 ---
 

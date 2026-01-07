@@ -93,11 +93,11 @@ pip install -e .
 
 ### Set Up Your API Key
 
-**For Hackathon Judges**: A shared Gemini API key is already configured in `.env.example` for your convenience. Just copy it:
+**For Hackathon Judges**: You'll receive a shared Gemini API key separately. To configure it:
 
 ```bash
 cp .env.example .env
-# That's it! The evaluation key is already set.
+# Edit .env and paste the provided key after GEMINI_API_KEY=
 ```
 
 **For Your Own Use**: Get your personal API key from [Google AI Studio](https://aistudio.google.com/app/apikey), then choose one of these methods:
@@ -131,6 +131,31 @@ bash scripts/run_demo.sh
 ```
 
 This script handles environment detection, dependency verification, demo data generation, and runs the analysis automatically.
+
+### Using With Your Own Data
+
+**See the complete guide**: [`docs/USER_GUIDE.md`](./docs/USER_GUIDE.md)
+
+Quick example with your real media exports:
+
+```bash
+# Single source
+organizer analyze --input ~/google-photos-export --output ./my_story
+
+# Multiple sources (recommended)
+organizer analyze \
+  --input ~/google-photos-export \
+  --input ~/snapchat-export \
+  --input ~/Pictures \
+  --output ./complete_story
+```
+
+The guide covers:
+
+- How to get exports from Google Photos, Snapchat, etc.
+- Privacy modes and configuration
+- File organization features
+- Understanding your generated report
 
 ### Run Analysis
 

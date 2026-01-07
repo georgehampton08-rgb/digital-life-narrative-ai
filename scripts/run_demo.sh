@@ -70,13 +70,6 @@ if ! command -v organizer &> /dev/null; then
     success "Project installed successfully."
 fi
 
-# --- Environment File Setup ---
-if [ ! -f ".env" ] && [ -f ".env.example" ]; then
-    info "No .env file found. Copying .env.example to .env..."
-    cp .env.example .env
-    success "Created .env with pre-configured evaluation API key for judges."
-fi
-
 # --- API Key Check ---
 HAS_API_KEY=false
 info "Checking for Gemini API key..."
@@ -90,7 +83,7 @@ if [ "$HAS_API_KEY" = true ]; then
     success "Gemini API key found! Full AI analysis enabled."
 else
     warning "No API key found. Falling back to statistics-only mode."
-    info "Note: To experience full AI narratives, run: organizer config set-key"
+    info "Note: Configure your key in .env or run: organizer config set-key"
 fi
 
 # --- Directory Setup ---
