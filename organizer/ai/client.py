@@ -15,12 +15,9 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, TypeVar
 
-import google.generativeai as genai
-from google.generativeai.types import (
-    GenerateContentResponse,
-    HarmBlockThreshold,
-    HarmCategory,
-)
+from google import genai
+from google.genai import types
+from google.genai.errors import ClientError as AIClientError
 from google.api_core import exceptions as google_exceptions
 
 from organizer.config import (
@@ -134,12 +131,26 @@ class AIClient:
 
     # Default safety settings for life story analysis
     # Allows personal content while maintaining reasonable safety
-    DEFAULT_SAFETY_SETTINGS = {
-        HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_ONLY_HIGH,
-        HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_ONLY_HIGH,
-        HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-        HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_ONLY_HIGH,
-    }
+    # Default safety settings for life story analysis
+    # Allows personal content while maintaining reasonable safety
+    DEFAULT_SAFETY_SETTINGS = [
+        types.SafetySetting(
+            category="HARM_CATEGORY_HARASSMENT",
+            threshold="BLOCK_ONLY_HIGH",
+        ),
+        types.SafetySetting(
+            category="HARM_CATEGORY_HATE_SPEECH",
+            threshold="BLOCK_ONLY_HIGH",
+        ),
+        types.SafetySetting(
+            category="HARM_CATEGORY_SEXUALLY_EXPLICIT",
+            threshold="BLOCK_MEDIUM_AND_ABOVE",
+        ),
+        types.SafetySetting(
+            category="HARM_CATEGORY_DANGEROUS_CONTENT",
+            threshold="BLOCK_ONLY_HIGH",
+        ),
+    ]
 
     def __init__(
         self,
@@ -161,11 +172,8 @@ class AIClient:
         if not self._api_key:
             raise APIKeyMissingError("No API key available. Configure with 'organizer configure'.")
 
-        # Configure the genai library
-        genai.configure(api_key=self._api_key)
-
-        # Initialize the model
-        self._model = self._configure_model()
+        # Initialize the new genai client
+        self._client = genai.Client(api_key=self._api_key)
 
         logger.debug(f"AI client initialized with model: {self.settings.model_name}")
 
@@ -186,24 +194,14 @@ class AIClient:
             logger.debug(f"Could not retrieve API key: {e}")
             return None
 
-    def _configure_model(self) -> genai.GenerativeModel:
-        """Configure and return the Gemini model.
-
-        Returns:
-            Configured GenerativeModel instance.
-        """
-        generation_config = genai.GenerationConfig(
-            temperature=self.settings.temperature,
-            max_output_tokens=self.settings.max_tokens,
-        )
-
-        model = genai.GenerativeModel(
-            model_name=self.settings.model_name,
-            generation_config=generation_config,
+    def _get_config(self, system_instruction: str | None = None, temperature: float | None = None, max_tokens: int | None = None) -> types.GenerateContentConfig:
+        """Get generation config."""
+        return types.GenerateContentConfig(
+            temperature=temperature if temperature is not None else self.settings.temperature,
+            max_output_tokens=max_tokens if max_tokens is not None else self.settings.max_tokens,
             safety_settings=self.DEFAULT_SAFETY_SETTINGS,
+            system_instruction=system_instruction,
         )
-
-        return model
 
     # =========================================================================
     # Public Methods
@@ -232,15 +230,19 @@ class AIClient:
             TokenLimitExceededError: If the prompt exceeds token limits.
             RateLimitError: If rate limit is exceeded and retries exhausted.
         """
-        # Create model with overrides if specified
-        model = self._get_model_with_overrides(
+        # Get config with overrides
+        config = self._get_config(
             system_instruction=system_instruction,
             temperature=temperature,
             max_tokens=max_tokens,
         )
 
-        def do_generate() -> GenerateContentResponse:
-            return model.generate_content(prompt)
+        def do_generate():
+            return self._client.models.generate_content(
+                model=self.settings.model_name,
+                contents=prompt,
+                config=config,
+            )
 
         try:
             response = self._with_retry(do_generate)
@@ -310,18 +312,12 @@ class AIClient:
             raise AIRequestError(f"Failed to parse JSON response: {e}")
 
     def count_tokens(self, text: str) -> int:
-        """Count tokens in a text string.
-
-        Uses Gemini's token counting API if available.
-
-        Args:
-            text: Text to count tokens for.
-
-        Returns:
-            Token count.
-        """
+        """Count tokens in a text string."""
         try:
-            result = self._model.count_tokens(text)
+            result = self._client.models.count_tokens(
+                model=self.settings.model_name,
+                contents=text
+            )
             return result.total_tokens
         except Exception as e:
             logger.debug(f"Token counting failed, using estimate: {e}")
@@ -352,34 +348,7 @@ class AIClient:
     # Private Methods
     # =========================================================================
 
-    def _get_model_with_overrides(
-        self,
-        system_instruction: str | None = None,
-        temperature: float | None = None,
-        max_tokens: int | None = None,
-    ) -> genai.GenerativeModel:
-        """Get a model instance with parameter overrides.
-
-        Args:
-            system_instruction: Optional system instruction.
-            temperature: Optional temperature override.
-            max_tokens: Optional max tokens override.
-
-        Returns:
-            Configured GenerativeModel.
-        """
-        # Determine generation config
-        gen_config = genai.GenerationConfig(
-            temperature=temperature if temperature is not None else self.settings.temperature,
-            max_output_tokens=max_tokens if max_tokens is not None else self.settings.max_tokens,
-        )
-
-        return genai.GenerativeModel(
-            model_name=self.settings.model_name,
-            generation_config=gen_config,
-            safety_settings=self.DEFAULT_SAFETY_SETTINGS,
-            system_instruction=system_instruction,
-        )
+    # _get_model_with_overrides removed in favor of _get_config
 
     def _with_retry(
         self,
@@ -508,84 +477,45 @@ class AIClient:
 
         return min(delay, max_delay)
 
-    def _parse_response(self, response: GenerateContentResponse) -> AIResponse:
-        """Parse a Gemini response into our AIResponse format.
-
-        Args:
-            response: Raw Gemini response.
-
-        Returns:
-            Parsed AIResponse.
-
-        Raises:
-            AIRequestError: If response is blocked or empty.
-        """
-        # Check for blocked response
+    def _parse_response(self, response: Any) -> AIResponse:
+        """Parse response."""
         if not response.candidates:
-            if response.prompt_feedback:
-                raise AIRequestError(f"Response blocked: {response.prompt_feedback}")
             raise AIRequestError("Empty response from API")
 
         candidate = response.candidates[0]
-
-        # Check finish reason
-        finish_reason = None
-        if hasattr(candidate, "finish_reason"):
-            finish_reason = str(candidate.finish_reason.name) if candidate.finish_reason else None
-
-            # Check for safety blocks
-            if finish_reason == "SAFETY":
-                raise AIRequestError("Response blocked due to safety settings")
+        
+        # Check for safety blocks or other errors
+        if candidate.finish_reason == "SAFETY":
+            raise AIRequestError("Response blocked due to safety settings")
 
         # Extract text
-        try:
-            text = response.text
-        except ValueError as e:
-            raise AIRequestError(f"Could not extract text from response: {e}")
-
-        # Extract token counts if available
-        prompt_tokens = None
-        completion_tokens = None
-
-        if hasattr(response, "usage_metadata") and response.usage_metadata:
-            metadata = response.usage_metadata
-            prompt_tokens = getattr(metadata, "prompt_token_count", None)
-            completion_tokens = getattr(metadata, "candidates_token_count", None)
-
+        text = response.text or ""
+        
         return AIResponse(
             text=text,
             model=self.settings.model_name,
-            prompt_tokens=prompt_tokens,
-            completion_tokens=completion_tokens,
-            finish_reason=finish_reason,
+            prompt_tokens=response.usage_metadata.prompt_token_count if response.usage_metadata else None,
+            completion_tokens=response.usage_metadata.candidates_token_count if response.usage_metadata else None,
+            finish_reason=str(candidate.finish_reason) if candidate.finish_reason else None,
             raw_response=response,
         )
 
     def _handle_api_error(self, error: Exception) -> None:
-        """Map API exceptions to our error hierarchy.
-
-        Args:
-            error: The caught exception.
-
-        Raises:
-            Appropriate AIClientError subclass.
-        """
+        """Map API exceptions to our error hierarchy."""
         error_str = str(error).lower()
 
-        # Check for common error patterns
-        if "quota" in error_str or "rate" in error_str:
+        if "quota" in error_str or "429" in error_str:
             raise RateLimitError(f"Rate limit or quota exceeded: {error}")
 
         if "token" in error_str and "limit" in error_str:
             raise TokenLimitExceededError(f"Token limit exceeded: {error}")
 
-        if "api key" in error_str or "authentication" in error_str:
+        if "401" in error_str or "unauthenticated" in error_str:
             raise APIKeyMissingError(f"API key error: {error}")
 
-        if "model" in error_str and ("not found" in error_str or "unavailable" in error_str):
+        if "404" in error_str or "not found" in error_str:
             raise ModelNotAvailableError(f"Model not available: {error}")
 
-        # Generic error
         raise AIRequestError(f"AI request failed: {error}")
 
 

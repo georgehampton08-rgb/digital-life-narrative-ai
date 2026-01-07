@@ -100,7 +100,7 @@ class AISettings(BaseModel):
         max_retries: Number of retry attempts on failure
     """
 
-    model_name: str = "gemini-1.5-pro"
+    model_name: str = "models/gemini-2.0-flash-exp"
     max_tokens: int = Field(default=8000, ge=100, le=100000)
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)
     timeout_seconds: int = Field(default=120, ge=10, le=600)

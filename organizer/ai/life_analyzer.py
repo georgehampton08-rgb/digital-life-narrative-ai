@@ -83,34 +83,41 @@ Analyze the data to find natural breakpoints that indicate life transitions:
 
 Output your analysis as valid JSON only. Be thoughtful and respectful of the personal nature of this data."""
 
-CHAPTER_DETECTION_USER_PROMPT = """Based on this media timeline summary and sample items, identify distinct life chapters.
+CHAPTER_DETECTION_USER_PROMPT = """Based on this chronological media timeline summary and samples, identify the core 'chapters' of this person's life journey. 
 
 ## Timeline Summary
 {temporal_summary}
 
-## Sample Items (chronological)
+## Sample Items
 {sample_items}
 
 ## Instructions
-Identify {min_chapters} to {max_chapters} distinct chapters in this person's life. For each chapter, provide:
+Identify {min_chapters} to {max_chapters} distinct life chapters. 
 
-1. A creative, descriptive title (e.g., "The Chicago Years", "New Beginnings", "Family Foundations")
-2. Start and end dates (YYYY-MM-DD format)
-3. Key themes you observe (1-5 themes)
-4. Location summary if discernible
-5. Your confidence level: "high", "medium", or "low"
+CRITICAL: Avoid using years as titles (e.g., "2024"). Instead, look for:
+1. **Thematic Shifts**: Changes in what they are photographing (e.g., from 'Late Nights' to 'Early Mornings').
+2. **Location Landmarks**: Moving from one city or area to another.
+3. **Activity Clusters**: A sudden focus on travel, a new hobby, or a specific group of people.
+4. **Relational Shifts**: Subtle changes in identifying tags or face clusters.
 
-Respond with a JSON array:
+For each chapter, provide:
+1. A poetic, evocative title (e.g., "The Nomadic Summer", "Foundations in Seattle", "The Creative Renaissance")
+2. Precise start and end dates (YYYY-MM-DD)
+3. A list of 3-5 sub-themes
+4. A location summary
+5. A 'reasoning' block explaining why pixels and metadata suggested this specific breakpoint.
+
+Respond with valid JSON only:
 ```json
 [
   {{
-    "title": "Chapter Title",
+    "title": "Evocative Title",
     "start_date": "YYYY-MM-DD",
     "end_date": "YYYY-MM-DD",
     "themes": ["theme1", "theme2"],
-    "location_summary": "Location description or null",
+    "location_summary": "Location name or null",
     "confidence": "high|medium|low",
-    "reasoning": "Brief explanation of why this is a distinct chapter"
+    "reasoning": "Archeological evidence: shift from local photos to travel metadata and new face clusters."
   }}
 ]
 ```"""
@@ -177,9 +184,17 @@ Respond with JSON array:
 ]
 ```"""
 
-EXECUTIVE_SUMMARY_SYSTEM_PROMPT = """You are a master biographer tasked with writing the opening summary of someone's life story. Drawing from chapter summaries and statistical data, craft a compelling narrative that captures the essence of their journey."""
+EXECUTIVE_SUMMARY_SYSTEM_PROMPT = """You are a master biographer and digital archeologist. Your task is to write a deeply moving and evocative opening summary of someone's life story based on the digital trail they've left behind.
 
-EXECUTIVE_SUMMARY_USER_PROMPT = """Create an executive summary of this person's life story:
+You weave together statistical facts (pixels, metadata, counts) with the human essence revealed in their chapters. Your tone is literary, reflective, and observant. You don't just list facts; you tell a story of growth, change, and the passage of time.
+
+Focus on:
+1. The significance of their digital presence (where they documented most)
+2. The transitions between phases (the "silent" shifts found in timestamps)
+3. The recurring themes that define their identity across a decade
+4. The emotional resonance of their most documented years"""
+
+EXECUTIVE_SUMMARY_USER_PROMPT = """Write a definitive, 5-paragraph life story summary based on this digital collection:
 
 ## Life Chapters
 {chapters_summary}
@@ -190,14 +205,14 @@ EXECUTIVE_SUMMARY_USER_PROMPT = """Create an executive summary of this person's 
 ## Platform Insights
 {platform_insights}
 
-Write a cohesive 3-5 paragraph life story summary that:
-1. Opens with a compelling hook about their journey
-2. Traces major arcs and transitions
-3. Highlights defining themes across their life
-4. Notes patterns in how they document their life
-5. Ends with a forward-looking or reflective note
+## Instructions
+1. **Paragraph 1: The Hook.** Open with a compelling observation about this person's journey. Describe the "digital fingerprint" they’ve left and the era it covers.
+2. **Paragraph 2: The Arc.** Trace the major transitions. How did they move from one phase to the next? Use the metadata (locations, years) to ground the story.
+3. **Paragraph 3: The Themes.** Identify the core threads that bind these years together—family, travel, career, or personal evolution.
+4. **Paragraph 4: The Medium.** Reflect on how they documented their life (Snapchat vs Google Photos, etc.) and what that says about their priorities and the way they saw the world.
+5. **Paragraph 5: Reflection.** End with a poignant summary of who this person was during this decade and the legacy these 2,000+ memories create.
 
-This is the opening of their life story book - make it count."""
+Write in a warm, professional, and slightly poetic third-person narrative. Make it feel like a cherished biography found among their files."""
 
 GAP_ANALYSIS_PROMPT = """Given these gaps in the media timeline, suggest possible reasons for each gap:
 
@@ -269,7 +284,9 @@ class LifeStoryAnalyzer:
 
         if client is None:
             try:
-                self.client = get_client()
+                # Use AI settings from AppConfig if available
+                ai_settings = getattr(self.config, "ai", None)
+                self.client = get_client(settings=ai_settings)
             except AIClientError as e:
                 logger.error(f"Failed to initialize AI client: {e}")
                 raise AINotAvailableError(f"AI service unavailable: {e}")
@@ -756,8 +773,24 @@ class LifeStoryAnalyzer:
                 )
                 prepared = self._prepare_items_for_ai(sampled)
 
-                # Store representative IDs
-                chapter.representative_media_ids = [item.id for item in sampled[:5]]
+                # Store representative IDs (prefer items with file paths for previews)
+                visual_items = [
+                    i for i in chapter_items 
+                    if i.file_path and i.media_type in (MediaType.PHOTO, MediaType.VIDEO)
+                ]
+                if not visual_items:
+                    visual_items = [i for i in chapter_items if i.file_path]
+                
+                # Take up to 4 representative items
+                if visual_items:
+                    # If many items, take some from start, middle, end
+                    if len(visual_items) > 4:
+                        indices = [0, len(visual_items)//3, 2*len(visual_items)//3, len(visual_items)-1]
+                        chapter.representative_media_ids = [visual_items[i].id for i in indices]
+                    else:
+                        chapter.representative_media_ids = [item.id for item in visual_items]
+                else:
+                    chapter.representative_media_ids = [item.id for item in sampled[:4]]
 
                 prompt = NARRATIVE_USER_PROMPT.format(
                     title=chapter.title,

@@ -385,7 +385,7 @@ def analyze(
     report_format = format_map[output_format]
 
     try:
-        output_paths = generate_report(report, output, report_format)
+        output_paths = generate_report(report, output, report_format, items=all_items)
         console.print()
         print_success("Report generated!")
         for path in output_paths:
@@ -399,7 +399,7 @@ def analyze(
     console.print()
     html_path = next((p for p in output_paths if p.suffix == ".html"), None)
     if html_path and confirm_action("Open report in browser?", default=True):
-        webbrowser.open(html_path.as_uri())
+        webbrowser.open(html_path.resolve().as_uri())
 
     # Final summary
     console.print()

@@ -1,116 +1,9 @@
-"""Report generator for Digital Life Narrative AI.
-
-Generates beautiful, interactive HTML reports and JSON exports from
-LifeStoryReport data. The HTML report is self-contained with inline
-CSS and JavaScript, requiring no external dependencies.
-
-The report brings the AI-generated life story to life with:
-- Interactive chapter timeline
-- Beautifully styled narratives
-- Platform insights visualization
-- Clear fallback mode indication
-"""
-
-from __future__ import annotations
-
-import json
-import logging
-from datetime import date, datetime
-from enum import Enum
-from pathlib import Path
-from typing import Any
-
-from jinja2 import Environment, BaseLoader
-
-from organizer.models import LifeStoryReport
-
-logger = logging.getLogger(__name__)
-
-
-# =============================================================================
-# Enums
-# =============================================================================
-
-
-class ReportFormat(Enum):
-    """Output format for the report."""
-
-    HTML = "html"
-    JSON = "json"
-    BOTH = "both"
-
-
-# =============================================================================
-# Helper Functions
-# =============================================================================
-
-
-def format_date_range(start: date | None, end: date | None) -> str:
-    """Format a date range for display.
-
-    Args:
-        start: Start date.
-        end: End date.
-
-    Returns:
-        Formatted string like "Jan 2019 - Dec 2023".
-    """
-    if not start or not end:
-        return "Unknown period"
-
-    start_str = start.strftime("%b %Y")
-    end_str = end.strftime("%b %Y")
-
-    if start_str == end_str:
-        return start_str
-
-    return f"{start_str} – {end_str}"
-
-
-def pluralize(count: int, singular: str, plural: str | None = None) -> str:
-    """Pluralize a word based on count.
-
-    Args:
-        count: The count to check.
-        singular: Singular form.
-        plural: Plural form (defaults to singular + 's').
-
-    Returns:
-        Appropriate form with count.
-    """
-    if plural is None:
-        plural = singular + "s"
-
-    if count == 1:
-        return f"{count} {singular}"
-    return f"{count:,} {plural}"
-
-
-def truncate_text(text: str, max_length: int = 200) -> str:
-    """Truncate text with ellipsis.
-
-    Args:
-        text: Text to truncate.
-        max_length: Maximum length.
-
-    Returns:
-        Truncated text.
-    """
-    if len(text) <= max_length:
-        return text
-    return text[: max_length - 3].rsplit(" ", 1)[0] + "..."
-
-
-# =============================================================================
-# HTML Template
-# =============================================================================
-
-HTML_TEMPLATE = """<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ title }}</title>
+    <title>Your Life Story</title>
     <style>
         /* CSS Variables for theming */
         :root {
@@ -188,9 +81,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
         /* Layout */
         .container {
-            max-width: 1400px;
+            max-width: 900px;
             margin: 0 auto;
-            padding: 0 3rem;
+            padding: 0 1.5rem;
         }
 
         /* Header */
@@ -290,9 +183,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         /* Stats Grid */
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 3rem;
-            margin: -5rem 0 5rem;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin: -2rem 0 3rem;
             position: relative;
             z-index: 10;
         }
@@ -331,11 +224,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         /* Executive Summary */
         .executive-summary {
             background: var(--bg-secondary);
-            border-radius: 24px;
-            padding: 3rem;
-            margin: 0 0 4rem;
+            border-radius: 16px;
+            padding: 2.5rem;
+            margin: 2rem 0;
             box-shadow: var(--shadow-lg);
-            border: 1px solid var(--border);
         }
 
         .executive-summary h2 {
@@ -354,20 +246,15 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
         /* Timeline */
         .timeline-section {
-            margin: 5rem 0;
-            background: var(--bg-secondary);
-            padding: 3rem;
-            border-radius: 24px;
-            border: 1px solid var(--border);
-            box-shadow: var(--shadow);
+            margin: 4rem 0;
         }
 
         .timeline {
             display: flex;
-            justify-content: space-around;
-            flex-wrap: wrap;
-            gap: 2rem;
-            padding: 3rem 0;
+            justify-content: center; /* Center items for shorter timelines */
+            flex-wrap: wrap; /* Allow wrapping instead of always scrolling */
+            gap: 1.5rem;
+            padding: 2rem 0;
             position: relative;
         }
 
@@ -405,8 +292,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         }
 
         .timeline-item {
-            flex: 1;
-            min-width: 150px;
+            flex-shrink: 0;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -414,7 +300,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             cursor: pointer;
             position: relative;
             z-index: 1;
-            transition: all 0.3s ease;
+            transition: transform 0.2s;
         }
 
         .timeline-item:hover { transform: translateY(-5px); }
@@ -713,11 +599,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
         /* Responsive */
         @media (max-width: 640px) {
-            .header h1 { font-size: 2.5rem; }
-            .executive-summary { padding: 2rem; }
-            .chapter-card { padding: 2rem; }
-            .stats-grid { grid-template-columns: repeat(2, 1fr); margin-top: -2rem; }
-            .timeline-item { min-width: 120px; }
+            .header h1 { font-size: 2rem; }
+            .executive-summary { padding: 1.5rem; }
+            .chapter-card { padding: 1.5rem; }
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
         }
 
         /* Section Headers */
@@ -748,44 +633,36 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <header class="header">
         <button class="theme-toggle" onclick="toggleTheme()" title="Toggle dark mode">🌙</button>
         <div class="container">
-            <h1>{{ title }}</h1>
-            <p class="subtitle">{{ subtitle }}</p>
+            <h1>Your Life Story</h1>
+            <p class="subtitle">An AI-powered narrative of your journey</p>
             <p class="meta">
-                {% if report.date_range %}
-                {{ format_date_range(report.date_range[0], report.date_range[1]) }}
-                {% endif %}
-                · {{ pluralize(report.total_media_analyzed, 'memory', 'memories') }}
+                
+                Sep 2017 – Jan 2026
+                
+                · 2,068 memories
             </p>
         </div>
     </header>
 
     <main class="container">
-        {% if report.is_fallback_mode %}
-        <!-- Fallback Warning -->
-        <div class="fallback-warning animate-in">
-            <h3>⚠️ AI Analysis Unavailable</h3>
-            <p>This report was generated in <strong>fallback mode</strong> without AI-powered narrative analysis. You're seeing statistics only.</p>
-            <p>To unlock the full life story experience with rich narratives and insights:</p>
-            <p><code>organizer configure --set-key</code></p>
-        </div>
-        {% endif %}
+        
 
         <!-- Stats Overview -->
         <div class="stats-grid animate-in">
             <div class="stat-card">
-                <div class="value">{{ report.total_media_analyzed | format_number }}</div>
+                <div class="value">2,068</div>
                 <div class="label">Total Memories</div>
             </div>
             <div class="stat-card">
-                <div class="value">{{ report.chapters | length }}</div>
+                <div class="value">5</div>
                 <div class="label">Life Chapters</div>
             </div>
             <div class="stat-card">
-                <div class="value">{{ report.years_covered or 0 }}</div>
+                <div class="value">10</div>
                 <div class="label">Years Covered</div>
             </div>
             <div class="stat-card">
-                <div class="value">{{ report.platform_insights | length or platforms_count }}</div>
+                <div class="value">1</div>
                 <div class="label">Platforms</div>
             </div>
         </div>
@@ -794,11 +671,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         <section class="executive-summary animate-in">
             <h2>📖 Your Story</h2>
             <div class="narrative">
-                {{ report.executive_summary | safe | markdown }}
+                <p>This life story spans 5 distinct chapters, from 2017-01-01 to 2026-12-31. The journey includes: "Year 2017", "Year 2018", "Year 2022", "Year 2024", "Year 2026".</p>
             </div>
         </section>
 
-        {% if report.chapters %}
+        
         <!-- Timeline -->
         <section class="timeline-section">
             <div class="section-header">
@@ -806,15 +683,47 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 <h2>Life Timeline</h2>
             </div>
             <div class="timeline">
-                {% for chapter in report.chapters %}
-                <div class="timeline-item" onclick="scrollToChapter('chapter-{{ loop.index }}')" style="--color: {{ chapter_colors[loop.index0 % chapter_colors | length] }}">
+                
+                <div class="timeline-item" onclick="scrollToChapter('chapter-1')" style="--color: #6366f1">
                     <div class="timeline-dot" style="background: var(--color)"></div>
                     <div class="timeline-label">
-                        <div class="timeline-title">{{ chapter.title | truncate(20) }}</div>
-                        <div>{{ chapter.start_date.year }}</div>
+                        <div class="timeline-title">Year 2017</div>
+                        <div>2017</div>
                     </div>
                 </div>
-                {% endfor %}
+                
+                <div class="timeline-item" onclick="scrollToChapter('chapter-2')" style="--color: #8b5cf6">
+                    <div class="timeline-dot" style="background: var(--color)"></div>
+                    <div class="timeline-label">
+                        <div class="timeline-title">Year 2018</div>
+                        <div>2018</div>
+                    </div>
+                </div>
+                
+                <div class="timeline-item" onclick="scrollToChapter('chapter-3')" style="--color: #a855f7">
+                    <div class="timeline-dot" style="background: var(--color)"></div>
+                    <div class="timeline-label">
+                        <div class="timeline-title">Year 2022</div>
+                        <div>2022</div>
+                    </div>
+                </div>
+                
+                <div class="timeline-item" onclick="scrollToChapter('chapter-4')" style="--color: #d946ef">
+                    <div class="timeline-dot" style="background: var(--color)"></div>
+                    <div class="timeline-label">
+                        <div class="timeline-title">Year 2024</div>
+                        <div>2024</div>
+                    </div>
+                </div>
+                
+                <div class="timeline-item" onclick="scrollToChapter('chapter-5')" style="--color: #ec4899">
+                    <div class="timeline-dot" style="background: var(--color)"></div>
+                    <div class="timeline-label">
+                        <div class="timeline-title">Year 2026</div>
+                        <div>2026</div>
+                    </div>
+                </div>
+                
             </div>
         </section>
 
@@ -824,80 +733,191 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 <span class="section-icon">📚</span>
                 <h2>Life Chapters</h2>
             </div>
-            {% for chapter in report.chapters %}
-            <article class="chapter-card animate-in" id="chapter-{{ loop.index }}" style="border-left-color: {{ chapter_colors[loop.index0 % chapter_colors | length] }}">
+            
+            <article class="chapter-card animate-in" id="chapter-1" style="border-left-color: #6366f1">
                 <div class="chapter-header">
                     <div>
-                        <h3 class="chapter-title">{{ chapter.title }}</h3>
-                        <div class="chapter-dates">{{ format_date_range(chapter.start_date, chapter.end_date) }}</div>
+                        <h3 class="chapter-title">Year 2017</h3>
+                        <div class="chapter-dates">Jan 2017 – Dec 2017</div>
                     </div>
                     <div class="chapter-meta">
-                        {% for theme in chapter.themes[:3] %}
-                        <span class="tag">{{ theme }}</span>
-                        {% endfor %}
-                        <span class="tag count">{{ pluralize(chapter.media_count, 'item') }}</span>
+                        
+                        <span class="tag count">990 items</span>
                     </div>
                 </div>
                 <div class="chapter-narrative">
-                    {{ chapter.narrative | safe | markdown }}
+                    <p>This chapter spans from 2017-01-01 to 2017-12-31, containing 990 media items.</p>
                 </div>
 
-                {% if chapter.representative_media_ids and media_lookup %}
+                
                 <div class="chapter-media">
-                    {% for media_id in chapter.representative_media_ids[:4] %}
-                    {% set item = media_lookup.get(media_id) %}
-                    {% if item and item.file_path %}
-                    <div class="media-preview">
-                        <img src="{{ item.file_path | file_uri }}" alt="Snapshot from {{ chapter.title }}" loading="lazy">
-                        <span class="media-type">{{ item.media_type.value }}</span>
-                    </div>
-                    {% endif %}
-                    {% endfor %}
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
                 </div>
-                {% endif %}
+                
 
-                {% if chapter.key_events %}
-                <div class="chapter-events">
-                    <h4>Key Moments</h4>
-                    <ul class="events-list">
-                        {% for event in chapter.key_events[:5] %}
-                        <li>{{ event }}</li>
-                        {% endfor %}
-                    </ul>
-                </div>
-                {% endif %}
+                
             </article>
-            {% endfor %}
-        </section>
-        {% endif %}
-
-        {% if report.platform_insights %}
-        <!-- Platform Insights -->
-        <section class="insights-section">
-            <div class="section-header">
-                <span class="section-icon">📱</span>
-                <h2>Platform Insights</h2>
-            </div>
-            <div class="insights-grid">
-                {% for insight in report.platform_insights %}
-                <div class="insight-card">
-                    <h3>
-                        <span class="platform-icon platform-{{ insight.platform.value }}">
-                            {{ platform_icons.get(insight.platform.value, '📷') }}
-                        </span>
-                        {{ insight.platform.value | title | replace('_', ' ') }}
-                    </h3>
-                    <p class="insight-pattern">{{ insight.usage_pattern }}</p>
-                    <div class="insight-meta">
-                        {% if insight.peak_years %}
-                        Peak years: {{ insight.peak_years | join(', ') }}
-                        {% endif %}
+            
+            <article class="chapter-card animate-in" id="chapter-2" style="border-left-color: #8b5cf6">
+                <div class="chapter-header">
+                    <div>
+                        <h3 class="chapter-title">Year 2018</h3>
+                        <div class="chapter-dates">Jan 2018 – Dec 2018</div>
+                    </div>
+                    <div class="chapter-meta">
+                        
+                        <span class="tag count">837 items</span>
                     </div>
                 </div>
-                {% endfor %}
-            </div>
+                <div class="chapter-narrative">
+                    <p>This chapter spans from 2018-01-01 to 2018-12-31, containing 837 media items.</p>
+                </div>
+
+                
+                <div class="chapter-media">
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                </div>
+                
+
+                
+            </article>
+            
+            <article class="chapter-card animate-in" id="chapter-3" style="border-left-color: #a855f7">
+                <div class="chapter-header">
+                    <div>
+                        <h3 class="chapter-title">Year 2022</h3>
+                        <div class="chapter-dates">Jan 2022 – Dec 2022</div>
+                    </div>
+                    <div class="chapter-meta">
+                        
+                        <span class="tag count">8 items</span>
+                    </div>
+                </div>
+                <div class="chapter-narrative">
+                    <p>This chapter spans from 2022-01-01 to 2022-12-31, containing 8 media items.</p>
+                </div>
+
+                
+                <div class="chapter-media">
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                </div>
+                
+
+                
+            </article>
+            
+            <article class="chapter-card animate-in" id="chapter-4" style="border-left-color: #d946ef">
+                <div class="chapter-header">
+                    <div>
+                        <h3 class="chapter-title">Year 2024</h3>
+                        <div class="chapter-dates">Jan 2024 – Dec 2024</div>
+                    </div>
+                    <div class="chapter-meta">
+                        
+                        <span class="tag count">51 items</span>
+                    </div>
+                </div>
+                <div class="chapter-narrative">
+                    <p>This chapter spans from 2024-01-01 to 2024-12-31, containing 51 media items.</p>
+                </div>
+
+                
+                <div class="chapter-media">
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                </div>
+                
+
+                
+            </article>
+            
+            <article class="chapter-card animate-in" id="chapter-5" style="border-left-color: #ec4899">
+                <div class="chapter-header">
+                    <div>
+                        <h3 class="chapter-title">Year 2026</h3>
+                        <div class="chapter-dates">Jan 2026 – Dec 2026</div>
+                    </div>
+                    <div class="chapter-meta">
+                        
+                        <span class="tag count">182 items</span>
+                    </div>
+                </div>
+                <div class="chapter-narrative">
+                    <p>This chapter spans from 2026-01-01 to 2026-12-31, containing 182 media items.</p>
+                </div>
+
+                
+                <div class="chapter-media">
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                </div>
+                
+
+                
+            </article>
+            
         </section>
-        {% endif %}
+        
+
+        
 
         <!-- Patterns & Gaps -->
         <section class="analysis-section">
@@ -906,41 +926,53 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 <h2>Analysis Details</h2>
             </div>
             <div class="analysis-grid">
-                {% if report.detected_patterns %}
+                
                 <div class="analysis-card">
                     <h3>📊 Detected Patterns</h3>
                     <ul class="pattern-list">
-                        {% for pattern in report.detected_patterns %}
-                        <li>{{ pattern }}</li>
-                        {% endfor %}
+                        
+                        <li>Decreasing documentation activity over time</li>
+                        
+                        <li>Primary platform: local</li>
+                        
                     </ul>
                 </div>
-                {% endif %}
+                
 
-                {% if report.data_gaps %}
+                
                 <div class="analysis-card">
                     <h3>📭 Data Gaps</h3>
                     <div class="gap-list">
-                        {% for gap in report.data_gaps[:5] %}
+                        
                         <div class="gap-item">
-                            <div class="gap-dates">{{ format_date_range(gap.start_date, gap.end_date) }}</div>
-                            <div class="gap-duration">{{ gap.gap_days }} days</div>
+                            <div class="gap-dates">Apr 2018 – Mar 2022</div>
+                            <div class="gap-duration">1422 days</div>
                         </div>
-                        {% endfor %}
+                        
+                        <div class="gap-item">
+                            <div class="gap-dates">Mar 2022 – May 2024</div>
+                            <div class="gap-duration">789 days</div>
+                        </div>
+                        
+                        <div class="gap-item">
+                            <div class="gap-dates">May 2024 – Jan 2026</div>
+                            <div class="gap-duration">614 days</div>
+                        </div>
+                        
                     </div>
                 </div>
-                {% endif %}
+                
 
-                {% if report.data_quality_notes %}
+                
                 <div class="analysis-card">
                     <h3>📋 Data Quality</h3>
                     <ul class="notes-list">
-                        {% for note in report.data_quality_notes %}
-                        <li>{{ note }}</li>
-                        {% endfor %}
+                        
+                        <li>Limited location data: 0% of items</li>
+                        
                     </ul>
                 </div>
-                {% endif %}
+                
             </div>
         </section>
     </main>
@@ -949,14 +981,14 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <footer class="footer">
         <div class="container">
             <p>
-                Generated on {{ report.generated_at.strftime('%B %d, %Y at %I:%M %p') }}
-                {% if report.ai_model_used %}
-                · AI Model: {{ report.ai_model_used }}
-                {% endif %}
+                Generated on January 07, 2026 at 06:40 PM
+                
+                · AI Model: models/gemini-1.5-flash
+                
             </p>
             <p class="privacy-note">
                 🔒 This report was generated locally. Your media and personal data never left your device
-                {% if not report.is_fallback_mode %}(only anonymized metadata was sent to the AI for narrative generation){% endif %}.
+                (only anonymized metadata was sent to the AI for narrative generation).
             </p>
         </div>
     </footer>
@@ -1032,285 +1064,4 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         });
     </script>
 </body>
-</html>"""
-
-
-# =============================================================================
-# Report Generator
-# =============================================================================
-
-
-class ReportGenerator:
-    """Generates HTML and JSON reports from LifeStoryReport data.
-
-    Creates beautiful, self-contained HTML reports with inline CSS/JS,
-    or JSON exports for programmatic use.
-
-    Attributes:
-        output_format: The format(s) to generate.
-
-    Example:
-        ```python
-        generator = ReportGenerator(ReportFormat.HTML)
-        paths = generator.generate(report, Path("output/my_story"))
-        print(f"Generated: {paths}")
-        ```
-    """
-
-    CHAPTER_COLORS = [
-        "#6366f1",
-        "#8b5cf6",
-        "#a855f7",
-        "#d946ef",
-        "#ec4899",
-        "#f43f5e",
-        "#ef4444",
-        "#f97316",
-        "#eab308",
-        "#22c55e",
-        "#14b8a6",
-        "#0ea5e9",
-    ]
-
-    PLATFORM_ICONS = {
-        "snapchat": "👻",
-        "google_photos": "📸",
-        "facebook": "📘",
-        "instagram": "📷",
-        "onedrive": "☁️",
-        "local": "💾",
-        "unknown": "❓",
-    }
-
-    def __init__(self, output_format: ReportFormat = ReportFormat.HTML) -> None:
-        """Initialize the report generator.
-
-        Args:
-            output_format: Format(s) to generate.
-        """
-        self.output_format = output_format
-        self._env = self._create_jinja_env()
-        logger.debug(f"ReportGenerator initialized with format: {output_format.value}")
-
-    def _create_jinja_env(self) -> Environment:
-        """Create Jinja2 environment with custom filters.
-
-        Returns:
-            Configured Jinja2 Environment.
-        """
-        env = Environment(loader=BaseLoader())
-
-        # Custom filters
-        env.filters["format_number"] = lambda x: f"{x:,}"
-        env.filters["truncate"] = truncate_text
-        env.filters["markdown"] = self._simple_markdown
-        env.filters["file_uri"] = lambda x: Path(str(x)).resolve().as_uri() if x else ""
-
-        # Global functions
-        env.globals["format_date_range"] = format_date_range
-        env.globals["pluralize"] = pluralize
-
-        return env
-
-    def _simple_markdown(self, text: str) -> str:
-        """Simple markdown-to-HTML conversion.
-
-        Handles basic formatting without external dependencies.
-
-        Args:
-            text: Markdown text.
-
-        Returns:
-            HTML string.
-        """
-        if not text:
-            return ""
-
-        # Convert line breaks to paragraphs
-        paragraphs = text.split("\n\n")
-        html_parts = []
-
-        for para in paragraphs:
-            para = para.strip()
-            if not para:
-                continue
-
-            # Handle bold
-            para = para.replace("**", "<strong>", 1)
-            while "**" in para:
-                para = para.replace("**", "</strong>", 1)
-                para = para.replace("**", "<strong>", 1)
-            para = para.replace("**", "</strong>")
-
-            # Handle italic
-            para = para.replace("*", "<em>", 1)
-            while "*" in para:
-                para = para.replace("*", "</em>", 1)
-                para = para.replace("*", "<em>", 1)
-            para = para.replace("*", "</em>")
-
-            # Handle code
-            para = para.replace("`", "<code>", 1)
-            while "`" in para:
-                para = para.replace("`", "</code>", 1)
-                para = para.replace("`", "<code>", 1)
-            para = para.replace("`", "</code>")
-
-            # Wrap in paragraph
-            html_parts.append(f"<p>{para}</p>")
-
-        return "\n".join(html_parts)
-
-    def generate(
-        self,
-        report: LifeStoryReport,
-        output_path: Path,
-        items: list[MediaItem] | None = None,
-    ) -> list[Path]:
-        """Generate report file(s).
-
-        Args:
-            report: The LifeStoryReport to render.
-            output_path: Base path for output (without extension).
-
-        Returns:
-            List of created file paths.
-        """
-        created_files = []
-
-        # Ensure parent directory exists
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-
-        if self.output_format in (ReportFormat.HTML, ReportFormat.BOTH):
-            html_path = self._generate_html(report, output_path, items)
-            created_files.append(html_path)
-            logger.info(f"Generated HTML report: {html_path}")
-
-        if self.output_format in (ReportFormat.JSON, ReportFormat.BOTH):
-            json_path = self._generate_json(report, output_path)
-            created_files.append(json_path)
-            logger.info(f"Generated JSON export: {json_path}")
-
-        return created_files
-
-    def _generate_html(
-        self,
-        report: LifeStoryReport,
-        output_path: Path,
-        items: list[MediaItem] | None = None,
-    ) -> Path:
-        """Generate the HTML report.
-
-        Args:
-            report: The report data.
-            output_path: Base output path.
-
-        Returns:
-            Path to created HTML file.
-        """
-        html_path = output_path.with_suffix(".html")
-
-        # Prepare template context
-        context = self._prepare_context(report, items)
-
-        # Render template
-        template = self._env.from_string(HTML_TEMPLATE)
-        html_content = template.render(**context)
-
-        # Write file
-        html_path.write_text(html_content, encoding="utf-8")
-
-        return html_path
-
-    def _generate_json(
-        self,
-        report: LifeStoryReport,
-        output_path: Path,
-    ) -> Path:
-        """Generate JSON export.
-
-        Args:
-            report: The report data.
-            output_path: Base output path.
-
-        Returns:
-            Path to created JSON file.
-        """
-        json_path = output_path.with_suffix(".json")
-
-        # Use Pydantic's built-in JSON serialization
-        json_content = report.model_dump_json(indent=2)
-
-        # Write file
-        json_path.write_text(json_content, encoding="utf-8")
-
-        return json_path
-
-    def _prepare_context(
-        self,
-        report: LifeStoryReport,
-        items: list[MediaItem] | None = None,
-    ) -> dict[str, Any]:
-        """Prepare template context from report.
-
-        Args:
-            report: The life story report.
-            items: Optional list of media items for lookups.
-
-        Returns:
-            Context dictionary for template.
-        """
-        # Create media lookup if items provided
-        media_lookup = {str(item.id): item for item in items} if items else {}
-        # Determine title
-        if report.is_fallback_mode:
-            title = "Your Life Story (Preview)"
-            subtitle = "Statistical overview of your media collection"
-        else:
-            title = "Your Life Story"
-            subtitle = "An AI-powered narrative of your journey"
-
-        # Count unique platforms from chapters or calculate
-        platforms_count = (
-            len(set(insight.platform.value for insight in report.platform_insights))
-            if report.platform_insights
-            else 1
-        )
-
-        return {
-            "report": report,
-            "title": title,
-            "subtitle": subtitle,
-            "platforms_count": platforms_count,
-            "chapter_colors": self.CHAPTER_COLORS,
-            "platform_icons": self.PLATFORM_ICONS,
-            "format_date_range": format_date_range,
-            "pluralize": pluralize,
-            "media_lookup": media_lookup,
-        }
-
-
-# =============================================================================
-# Module-Level Functions
-# =============================================================================
-
-
-def generate_report(
-    report: LifeStoryReport,
-    output_path: Path,
-    output_format: ReportFormat = ReportFormat.HTML,
-    items: list[MediaItem] | None = None,
-) -> list[Path]:
-    """Convenience function to generate a report.
-
-    Args:
-        report: The LifeStoryReport to render.
-        output_path: Base path for output.
-        output_format: Format(s) to generate.
-        items: Optional list of media items.
-
-    Returns:
-        List of created file paths.
-    """
-    generator = ReportGenerator(output_format)
-    return generator.generate(report, output_path, items=items)
+</html>

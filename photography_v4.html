@@ -1,0 +1,973 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Your Life Story</title>
+    <style>
+        /* CSS Variables for theming */
+        :root {
+            --bg-primary: #fafafa;
+            --bg-secondary: #ffffff;
+            --bg-tertiary: #f5f5f5;
+            --text-primary: #1a1a1a;
+            --text-secondary: #666666;
+            --text-muted: #999999;
+            --accent: #6366f1;
+            --accent-light: #818cf8;
+            --accent-bg: #eef2ff;
+            --border: #e5e5e5;
+            --shadow: 0 1px 3px rgba(0,0,0,0.1);
+            --shadow-lg: 0 10px 40px rgba(0,0,0,0.1);
+            --gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --warning-bg: #fef3c7;
+            --warning-border: #f59e0b;
+            --warning-text: #92400e;
+            --success: #10b981;
+            --chapter-colors: #6366f1, #8b5cf6, #a855f7, #d946ef, #ec4899, #f43f5e;
+        }
+
+        [data-theme="dark"] {
+            --bg-primary: #0f0f0f;
+            --bg-secondary: #1a1a1a;
+            --bg-tertiary: #262626;
+            --text-primary: #fafafa;
+            --text-secondary: #a3a3a3;
+            --text-muted: #737373;
+            --border: #404040;
+            --shadow: 0 1px 3px rgba(0,0,0,0.3);
+            --shadow-lg: 0 10px 40px rgba(0,0,0,0.4);
+            --accent-bg: #1e1b4b;
+            --warning-bg: #451a03;
+            --warning-border: #d97706;
+            --warning-text: #fcd34d;
+        }
+
+        /* Reset & Base */
+        *, *::before, *::after { box-sizing: border-box; }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.7;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* Typography */
+        h1, h2, h3, h4 { 
+            font-weight: 600; 
+            line-height: 1.3; 
+            margin: 0 0 1rem 0;
+        }
+        
+        h1 { font-size: 2.5rem; }
+        h2 { font-size: 1.75rem; }
+        h3 { font-size: 1.25rem; }
+        p { margin: 0 0 1rem 0; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+
+        /* Layout */
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 0 1.5rem;
+        }
+
+        /* Header */
+        .header {
+            background: var(--gradient);
+            color: white;
+            padding: 4rem 0 3rem;
+            text-align: center;
+            position: relative;
+        }
+
+        .header h1 {
+            font-size: 3rem;
+            margin-bottom: 0.5rem;
+            text-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        }
+
+        .header .subtitle {
+            font-size: 1.25rem;
+            opacity: 0.9;
+        }
+
+        .header .meta {
+            margin-top: 1.5rem;
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+
+        .theme-toggle {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            background: rgba(255,255,255,0.2);
+            border: none;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            cursor: pointer;
+            font-size: 1.2rem;
+            transition: transform 0.3s;
+        }
+        
+        .theme-toggle:hover { transform: scale(1.1); }
+
+        /* Fallback Warning */
+        .fallback-warning {
+            background: var(--warning-bg);
+            border: 2px solid var(--warning-border);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin: 2rem 0;
+            color: var(--warning-text);
+        }
+
+        .fallback-warning h3 {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .fallback-warning code {
+            background: rgba(0,0,0,0.1);
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-family: 'SF Mono', Monaco, monospace;
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+            margin: 2rem 0;
+        }
+
+        .stat-card {
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            padding: 1.5rem;
+            text-align: center;
+            box-shadow: var(--shadow);
+        }
+
+        .stat-card .value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--accent);
+        }
+
+        .stat-card .label {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            margin-top: 0.25rem;
+        }
+
+        /* Executive Summary */
+        .executive-summary {
+            background: var(--bg-secondary);
+            border-radius: 16px;
+            padding: 2.5rem;
+            margin: 2rem 0;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .executive-summary h2 {
+            color: var(--accent);
+            margin-bottom: 1.5rem;
+        }
+
+        .executive-summary .narrative {
+            font-size: 1.1rem;
+            color: var(--text-primary);
+        }
+
+        .executive-summary .narrative p {
+            margin-bottom: 1.25rem;
+        }
+
+        /* Timeline */
+        .timeline-section {
+            margin: 3rem 0;
+        }
+
+        .timeline {
+            display: flex;
+            overflow-x: auto;
+            gap: 2rem;
+            padding: 2.5rem 1rem;
+            position: relative;
+            scrollbar-width: thin;
+        }
+
+        .timeline::-webkit-scrollbar {
+            height: 6px;
+        }
+
+        .timeline::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 3px;
+        }
+
+        .timeline::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: var(--border);
+            z-index: 0;
+        }
+
+        .timeline-item {
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 0 1rem;
+            cursor: pointer;
+            position: relative;
+            z-index: 1;
+            transition: transform 0.2s;
+        }
+
+        .timeline-item:hover { transform: translateY(-5px); }
+
+        .timeline-dot {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: var(--accent);
+            border: 4px solid var(--bg-primary);
+            box-shadow: var(--shadow);
+        }
+
+        .timeline-label {
+            margin-top: 1rem;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            text-align: center;
+            min-width: 120px;
+        }
+
+        .timeline-title {
+            font-weight: 600;
+            font-size: 0.8rem;
+            color: var(--text-primary);
+        }
+
+        /* Chapters */
+        .chapters-section {
+            margin: 3rem 0;
+        }
+
+        .chapter-card {
+            background: var(--bg-secondary);
+            border-radius: 16px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: var(--shadow);
+            border-left: 4px solid var(--accent);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .chapter-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .chapter-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .chapter-title {
+            margin: 0;
+            font-size: 1.5rem;
+        }
+
+        .chapter-dates {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .chapter-meta {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .tag {
+            background: var(--accent-bg);
+            color: var(--accent);
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+
+        .tag.count {
+            background: var(--bg-tertiary);
+            color: var(--text-secondary);
+        }
+
+        .chapter-narrative {
+            margin: 1.5rem 0;
+            color: var(--text-primary);
+            font-size: 1.05rem;
+        }
+
+        .chapter-events h4 {
+            font-size: 1rem;
+            color: var(--text-primary);
+            margin-bottom: 1rem;
+            font-weight: 600;
+        }
+
+        /* Media Previews */
+        .chapter-media {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 1rem;
+            margin: 1.5rem 0;
+        }
+
+        .media-preview {
+            aspect-ratio: 1;
+            border-radius: 12px;
+            overflow: hidden;
+            background: var(--bg-tertiary);
+            position: relative;
+            box-shadow: var(--shadow);
+            transition: transform 0.2s;
+        }
+
+        .media-preview:hover {
+            transform: scale(1.05);
+            z-index: 2;
+        }
+
+        .media-preview img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .media-preview .media-type {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            background: rgba(0,0,0,0.5);
+            color: white;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            backdrop-filter: blur(4px);
+        }
+
+        .events-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .events-list li {
+            display: flex;
+            align-items: baseline;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .events-list li::before {
+            content: '✦';
+            color: var(--accent);
+        }
+
+        /* Platform Insights */
+        .insights-section {
+            margin: 3rem 0;
+        }
+
+        .insights-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .insight-card {
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: var(--shadow);
+        }
+
+        .insight-card h3 {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .platform-icon {
+            width: 24px;
+            height: 24px;
+            border-radius: 6px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+        }
+
+        .platform-snapchat { background: #FFFC00; color: black; }
+        .platform-google_photos { background: #4285f4; color: white; }
+        .platform-facebook { background: #1877f2; color: white; }
+        .platform-instagram { background: linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888); color: white; }
+        .platform-local { background: #6b7280; color: white; }
+
+        .insight-pattern {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+            margin-bottom: 1rem;
+        }
+
+        .insight-meta {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        /* Patterns & Gaps */
+        .analysis-section {
+            margin: 3rem 0;
+        }
+
+        .analysis-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+        }
+
+        .analysis-card {
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: var(--shadow);
+        }
+
+        .analysis-card h3 {
+            margin-bottom: 1rem;
+            font-size: 1.1rem;
+        }
+
+        .pattern-list, .gap-list, .notes-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .pattern-list li, .notes-list li {
+            padding: 0.5rem 0;
+            border-bottom: 1px solid var(--border);
+            color: var(--text-secondary);
+        }
+
+        .pattern-list li:last-child, .notes-list li:last-child {
+            border-bottom: none;
+        }
+
+        .gap-item {
+            padding: 0.75rem;
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            margin-bottom: 0.75rem;
+        }
+
+        .gap-dates {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .gap-duration {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        /* Footer */
+        .footer {
+            background: var(--bg-tertiary);
+            padding: 3rem 0;
+            margin-top: 4rem;
+            text-align: center;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .footer .privacy-note {
+            max-width: 600px;
+            margin: 1rem auto 0;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        /* Animations */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .animate-in {
+            animation: fadeIn 0.6s ease-out forwards;
+        }
+
+        /* Responsive */
+        @media (max-width: 640px) {
+            .header h1 { font-size: 2rem; }
+            .executive-summary { padding: 1.5rem; }
+            .chapter-card { padding: 1.5rem; }
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+
+        /* Section Headers */
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .section-header h2 {
+            margin: 0;
+        }
+
+        .section-icon {
+            font-size: 1.5rem;
+        }
+
+        /* Print styles */
+        @media print {
+            .theme-toggle, .timeline { display: none; }
+            .chapter-card { break-inside: avoid; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <button class="theme-toggle" onclick="toggleTheme()" title="Toggle dark mode">🌙</button>
+        <div class="container">
+            <h1>Your Life Story</h1>
+            <p class="subtitle">An AI-powered narrative of your journey</p>
+            <p class="meta">
+                
+                Sep 2017 – Jan 2026
+                
+                · 2,068 memories
+            </p>
+        </div>
+    </header>
+
+    <main class="container">
+        
+
+        <!-- Stats Overview -->
+        <div class="stats-grid animate-in">
+            <div class="stat-card">
+                <div class="value">2,068</div>
+                <div class="label">Total Memories</div>
+            </div>
+            <div class="stat-card">
+                <div class="value">5</div>
+                <div class="label">Life Chapters</div>
+            </div>
+            <div class="stat-card">
+                <div class="value">10</div>
+                <div class="label">Years Covered</div>
+            </div>
+            <div class="stat-card">
+                <div class="value">1</div>
+                <div class="label">Platforms</div>
+            </div>
+        </div>
+
+        <!-- Executive Summary -->
+        <section class="executive-summary animate-in">
+            <h2>📖 Your Story</h2>
+            <div class="narrative">
+                <p>This life story spans 5 distinct chapters, from 2017-01-01 to 2026-12-31. The journey includes: "Year 2017", "Year 2018", "Year 2022", "Year 2024", "Year 2026".</p>
+            </div>
+        </section>
+
+        
+        <!-- Timeline -->
+        <section class="timeline-section">
+            <div class="section-header">
+                <span class="section-icon">📅</span>
+                <h2>Life Timeline</h2>
+            </div>
+            <div class="timeline">
+                
+                <div class="timeline-item" onclick="scrollToChapter('chapter-1')" style="--color: #6366f1">
+                    <div class="timeline-dot" style="background: var(--color)"></div>
+                    <div class="timeline-label">
+                        <div class="timeline-title">Year 2017</div>
+                        <div>2017</div>
+                    </div>
+                </div>
+                
+                <div class="timeline-item" onclick="scrollToChapter('chapter-2')" style="--color: #8b5cf6">
+                    <div class="timeline-dot" style="background: var(--color)"></div>
+                    <div class="timeline-label">
+                        <div class="timeline-title">Year 2018</div>
+                        <div>2018</div>
+                    </div>
+                </div>
+                
+                <div class="timeline-item" onclick="scrollToChapter('chapter-3')" style="--color: #a855f7">
+                    <div class="timeline-dot" style="background: var(--color)"></div>
+                    <div class="timeline-label">
+                        <div class="timeline-title">Year 2022</div>
+                        <div>2022</div>
+                    </div>
+                </div>
+                
+                <div class="timeline-item" onclick="scrollToChapter('chapter-4')" style="--color: #d946ef">
+                    <div class="timeline-dot" style="background: var(--color)"></div>
+                    <div class="timeline-label">
+                        <div class="timeline-title">Year 2024</div>
+                        <div>2024</div>
+                    </div>
+                </div>
+                
+                <div class="timeline-item" onclick="scrollToChapter('chapter-5')" style="--color: #ec4899">
+                    <div class="timeline-dot" style="background: var(--color)"></div>
+                    <div class="timeline-label">
+                        <div class="timeline-title">Year 2026</div>
+                        <div>2026</div>
+                    </div>
+                </div>
+                
+            </div>
+        </section>
+
+        <!-- Chapters -->
+        <section class="chapters-section">
+            <div class="section-header">
+                <span class="section-icon">📚</span>
+                <h2>Life Chapters</h2>
+            </div>
+            
+            <article class="chapter-card animate-in" id="chapter-1" style="border-left-color: #6366f1">
+                <div class="chapter-header">
+                    <div>
+                        <h3 class="chapter-title">Year 2017</h3>
+                        <div class="chapter-dates">Jan 2017 – Dec 2017</div>
+                    </div>
+                    <div class="chapter-meta">
+                        
+                        <span class="tag count">990 items</span>
+                    </div>
+                </div>
+                <div class="chapter-narrative">
+                    <p>This chapter spans from 2017-01-01 to 2017-12-31, containing 990 media items.</p>
+                </div>
+
+                
+                <div class="chapter-media">
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                </div>
+                
+
+                
+            </article>
+            
+            <article class="chapter-card animate-in" id="chapter-2" style="border-left-color: #8b5cf6">
+                <div class="chapter-header">
+                    <div>
+                        <h3 class="chapter-title">Year 2018</h3>
+                        <div class="chapter-dates">Jan 2018 – Dec 2018</div>
+                    </div>
+                    <div class="chapter-meta">
+                        
+                        <span class="tag count">837 items</span>
+                    </div>
+                </div>
+                <div class="chapter-narrative">
+                    <p>This chapter spans from 2018-01-01 to 2018-12-31, containing 837 media items.</p>
+                </div>
+
+                
+                <div class="chapter-media">
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                </div>
+                
+
+                
+            </article>
+            
+            <article class="chapter-card animate-in" id="chapter-3" style="border-left-color: #a855f7">
+                <div class="chapter-header">
+                    <div>
+                        <h3 class="chapter-title">Year 2022</h3>
+                        <div class="chapter-dates">Jan 2022 – Dec 2022</div>
+                    </div>
+                    <div class="chapter-meta">
+                        
+                        <span class="tag count">8 items</span>
+                    </div>
+                </div>
+                <div class="chapter-narrative">
+                    <p>This chapter spans from 2022-01-01 to 2022-12-31, containing 8 media items.</p>
+                </div>
+
+                
+                <div class="chapter-media">
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                </div>
+                
+
+                
+            </article>
+            
+            <article class="chapter-card animate-in" id="chapter-4" style="border-left-color: #d946ef">
+                <div class="chapter-header">
+                    <div>
+                        <h3 class="chapter-title">Year 2024</h3>
+                        <div class="chapter-dates">Jan 2024 – Dec 2024</div>
+                    </div>
+                    <div class="chapter-meta">
+                        
+                        <span class="tag count">51 items</span>
+                    </div>
+                </div>
+                <div class="chapter-narrative">
+                    <p>This chapter spans from 2024-01-01 to 2024-12-31, containing 51 media items.</p>
+                </div>
+
+                
+                <div class="chapter-media">
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                </div>
+                
+
+                
+            </article>
+            
+            <article class="chapter-card animate-in" id="chapter-5" style="border-left-color: #ec4899">
+                <div class="chapter-header">
+                    <div>
+                        <h3 class="chapter-title">Year 2026</h3>
+                        <div class="chapter-dates">Jan 2026 – Dec 2026</div>
+                    </div>
+                    <div class="chapter-meta">
+                        
+                        <span class="tag count">182 items</span>
+                    </div>
+                </div>
+                <div class="chapter-narrative">
+                    <p>This chapter spans from 2026-01-01 to 2026-12-31, containing 182 media items.</p>
+                </div>
+
+                
+                <div class="chapter-media">
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                </div>
+                
+
+                
+            </article>
+            
+        </section>
+        
+
+        
+
+        <!-- Patterns & Gaps -->
+        <section class="analysis-section">
+            <div class="section-header">
+                <span class="section-icon">🔍</span>
+                <h2>Analysis Details</h2>
+            </div>
+            <div class="analysis-grid">
+                
+                <div class="analysis-card">
+                    <h3>📊 Detected Patterns</h3>
+                    <ul class="pattern-list">
+                        
+                        <li>Decreasing documentation activity over time</li>
+                        
+                        <li>Primary platform: local</li>
+                        
+                    </ul>
+                </div>
+                
+
+                
+                <div class="analysis-card">
+                    <h3>📭 Data Gaps</h3>
+                    <div class="gap-list">
+                        
+                        <div class="gap-item">
+                            <div class="gap-dates">Apr 2018 – Mar 2022</div>
+                            <div class="gap-duration">1422 days</div>
+                        </div>
+                        
+                        <div class="gap-item">
+                            <div class="gap-dates">Mar 2022 – May 2024</div>
+                            <div class="gap-duration">789 days</div>
+                        </div>
+                        
+                        <div class="gap-item">
+                            <div class="gap-dates">May 2024 – Jan 2026</div>
+                            <div class="gap-duration">614 days</div>
+                        </div>
+                        
+                    </div>
+                </div>
+                
+
+                
+                <div class="analysis-card">
+                    <h3>📋 Data Quality</h3>
+                    <ul class="notes-list">
+                        
+                        <li>Limited location data: 0% of items</li>
+                        
+                    </ul>
+                </div>
+                
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <p>
+                Generated on January 07, 2026 at 06:34 PM
+                
+                · AI Model: models/gemini-1.5-flash
+                
+            </p>
+            <p class="privacy-note">
+                🔒 This report was generated locally. Your media and personal data never left your device
+                (only anonymized metadata was sent to the AI for narrative generation).
+            </p>
+        </div>
+    </footer>
+
+    <script>
+        // Theme toggle
+        function toggleTheme() {
+            const html = document.documentElement;
+            const currentTheme = html.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            html.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            document.querySelector('.theme-toggle').textContent = newTheme === 'dark' ? '☀️' : '🌙';
+        }
+
+        // Load saved theme
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme) {
+            document.documentElement.setAttribute('data-theme', savedTheme);
+            document.querySelector('.theme-toggle').textContent = savedTheme === 'dark' ? '☀️' : '🌙';
+        }
+
+        // Smooth scroll to chapter
+        function scrollToChapter(id) {
+            const element = document.getElementById(id);
+            if (element) {
+                element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                element.style.boxShadow = '0 0 0 3px var(--accent)';
+                setTimeout(() => {
+                    element.style.boxShadow = '';
+                }, 2000);
+            }
+        }
+
+        // Animate elements on scroll
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('animate-in');
+                }
+            });
+        }, { threshold: 0.1 });
+
+        document.querySelectorAll('.chapter-card, .insight-card, .analysis-card').forEach(el => {
+            observer.observe(el);
+        });
+    </script>
+</body>
+</html>
