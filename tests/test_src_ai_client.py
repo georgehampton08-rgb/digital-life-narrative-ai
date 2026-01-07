@@ -13,41 +13,37 @@ All tests mock the google.generativeai SDK — no real API calls.
 
 from __future__ import annotations
 
-import json
-import time
-from typing import Any
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 # Import test targets - module handles missing SDK gracefully
 from src.ai.client import (
+    AIAuthError,
+    AIBadRequestError,
     # Client
     AIClient,
-    get_client,
-    require_ai,
-    # Consent
-    request_consent,
-    has_consent,
-    revoke_consent,
-    grant_consent_programmatic,
-    # Response models
-    AIResponse,
-    StructuredResponse,
     # Exceptions
     AIClientError,
-    AIUnavailableError,
-    AIAuthError,
-    AIRateLimitError,
+    AIContentBlockedError,
+    AIModelNotFoundError,
     AIQuotaExceededError,
+    AIRateLimitError,
+    # Response models
+    AIResponse,
     AIServerError,
-    AIBadRequestError,
     AITimeoutError,
     AITokenLimitError,
-    AIModelNotFoundError,
-    AIContentBlockedError,
+    AIUnavailableError,
+    StructuredResponse,
+    get_client,
+    grant_consent_programmatic,
+    has_consent,
+    # Consent
+    request_consent,
+    require_ai,
+    revoke_consent,
 )
-
 
 # =============================================================================
 # Fixtures
@@ -124,7 +120,7 @@ class TestExceptions:
     def test_ai_unavailable_error_reasons(self):
         """Test AIUnavailableError with different reasons."""
         reasons = ["disabled", "no_key", "offline", "no_consent", "sdk_missing"]
-        
+
         for reason in reasons:
             error = AIUnavailableError(reason)
             assert error.reason == reason
@@ -163,7 +159,7 @@ class TestExceptions:
             AIModelNotFoundError("model"),
             AIContentBlockedError(),
         ]
-        
+
         for exc in exceptions:
             assert isinstance(exc, AIClientError)
 
@@ -187,7 +183,7 @@ class TestResponseModels:
             finish_reason="STOP",
             generation_time_ms=100.0,
         )
-        
+
         assert response.text == "Hello world"
         assert response.model == "gemini-1.5-pro"
         assert response.total_tokens == 15
@@ -197,7 +193,7 @@ class TestResponseModels:
         # Not truncated
         response = AIResponse(text="", model="test", finish_reason="STOP")
         assert response.is_truncated() is False
-        
+
         # Truncated
         response = AIResponse(text="", model="test", finish_reason="MAX_TOKENS")
         assert response.is_truncated() is True
@@ -209,7 +205,7 @@ class TestResponseModels:
             model="test",
             raw_response={"secret": "data"},
         )
-        
+
         d = response.to_dict()
         assert "raw_response" not in d
         assert d["text"] == "Hello"
@@ -222,7 +218,7 @@ class TestResponseModels:
             model="test",
             parse_success=True,
         )
-        
+
         assert response.data["key"] == "value"
         assert response.parse_success is True
 
@@ -235,7 +231,7 @@ class TestResponseModels:
             parse_success=False,
             parse_error="Invalid JSON",
         )
-        
+
         assert response.parse_success is False
         assert response.parse_error == "Invalid JSON"
 
@@ -257,7 +253,7 @@ class TestConsentManagement:
         """Test programmatic consent grant."""
         revoke_consent()
         assert has_consent() is False
-        
+
         grant_consent_programmatic()
         assert has_consent() is True
 
@@ -265,31 +261,29 @@ class TestConsentManagement:
         """Test consent revocation."""
         grant_consent_programmatic()
         assert has_consent() is True
-        
+
         revoke_consent()
         assert has_consent() is False
 
     def test_request_consent_with_input(self):
         """Test interactive consent request."""
         revoke_consent()
-        
+
         # Mock user input "y"
-        with patch("builtins.input", return_value="y"):
-            with patch("builtins.print"):
-                result = request_consent(force=True)
-        
+        with patch("builtins.input", return_value="y"), patch("builtins.print"):
+            result = request_consent(force=True)
+
         assert result is True
         assert has_consent() is True
 
     def test_request_consent_declined(self):
         """Test consent declined."""
         revoke_consent()
-        
+
         # Mock user input "n"
-        with patch("builtins.input", return_value="n"):
-            with patch("builtins.print"):
-                result = request_consent(force=True)
-        
+        with patch("builtins.input", return_value="n"), patch("builtins.print"):
+            result = request_consent(force=True)
+
         assert result is False
         assert has_consent() is False
 
@@ -316,9 +310,9 @@ class TestAIClient:
         """Test successful client initialization."""
         mock_get_config.return_value = mock_config
         mock_get_api_key.return_value = MagicMock(get_secret_value=lambda: "test-key")
-        
+
         client = AIClient(config=mock_config)
-        
+
         assert client._is_configured is True
         mock_genai.configure.assert_called_once()
 
@@ -333,9 +327,9 @@ class TestAIClient:
     ):
         """Test client with AI disabled."""
         mock_get_config.return_value = mock_disabled_config
-        
+
         client = AIClient(config=mock_disabled_config)
-        
+
         assert client.is_available() is False
 
     @patch("src.ai.client.GENAI_AVAILABLE", True)
@@ -352,9 +346,9 @@ class TestAIClient:
         """Test is_available() check."""
         mock_get_config.return_value = mock_config
         mock_get_api_key.return_value = MagicMock(get_secret_value=lambda: "test-key")
-        
+
         client = AIClient(config=mock_config)
-        
+
         assert client.is_available() is True
 
     @patch("src.ai.client.GENAI_AVAILABLE", True)
@@ -371,13 +365,13 @@ class TestAIClient:
         """Test _ensure_available raises when no consent."""
         mock_get_config.return_value = mock_config
         mock_get_api_key.return_value = MagicMock(get_secret_value=lambda: "test-key")
-        
+
         revoke_consent()
         client = AIClient(config=mock_config)
-        
+
         with pytest.raises(AIUnavailableError) as exc_info:
             client._ensure_available()
-        
+
         assert exc_info.value.reason == "no_consent"
 
     @patch("src.ai.client.GENAI_AVAILABLE", True)
@@ -395,16 +389,16 @@ class TestAIClient:
         """Test successful generate() call."""
         mock_get_config.return_value = mock_config
         mock_get_api_key.return_value = MagicMock(get_secret_value=lambda: "test-key")
-        
+
         mock_model = MagicMock()
         mock_model.generate_content.return_value = mock_genai_response
         mock_genai.GenerativeModel.return_value = mock_model
-        
+
         grant_consent_programmatic()
         client = AIClient(config=mock_config)
-        
+
         response = client.generate("Test prompt")
-        
+
         assert isinstance(response, AIResponse)
         assert response.text == "Generated response text"
         assert response.total_tokens == 150
@@ -423,7 +417,7 @@ class TestAIClient:
         """Test generate_structured() with valid JSON."""
         mock_get_config.return_value = mock_config
         mock_get_api_key.return_value = MagicMock(get_secret_value=lambda: "test-key")
-        
+
         # Create response with JSON text
         mock_response = MagicMock()
         mock_response.text = '{"key": "value", "count": 42}'
@@ -435,16 +429,16 @@ class TestAIClient:
             total_token_count=75,
         )
         mock_response.prompt_feedback = MagicMock(block_reason=None)
-        
+
         mock_model = MagicMock()
         mock_model.generate_content.return_value = mock_response
         mock_genai.GenerativeModel.return_value = mock_model
-        
+
         grant_consent_programmatic()
         client = AIClient(config=mock_config)
-        
+
         response = client.generate_structured("Generate JSON")
-        
+
         assert response.parse_success is True
         assert response.data["key"] == "value"
         assert response.data["count"] == 42
@@ -463,7 +457,7 @@ class TestAIClient:
         """Test generate_structured() with invalid JSON."""
         mock_get_config.return_value = mock_config
         mock_get_api_key.return_value = MagicMock(get_secret_value=lambda: "test-key")
-        
+
         # Response with invalid JSON
         mock_response = MagicMock()
         mock_response.text = "This is not JSON at all"
@@ -475,16 +469,16 @@ class TestAIClient:
             total_token_count=75,
         )
         mock_response.prompt_feedback = MagicMock(block_reason=None)
-        
+
         mock_model = MagicMock()
         mock_model.generate_content.return_value = mock_response
         mock_genai.GenerativeModel.return_value = mock_model
-        
+
         grant_consent_programmatic()
         client = AIClient(config=mock_config)
-        
+
         response = client.generate_structured("Generate JSON")
-        
+
         assert response.parse_success is False
         assert response.parse_error is not None
 
@@ -502,9 +496,9 @@ class TestAIClient:
         """Test token estimation."""
         mock_get_config.return_value = mock_config
         mock_get_api_key.return_value = MagicMock(get_secret_value=lambda: "test-key")
-        
+
         client = AIClient(config=mock_config)
-        
+
         # ~4 chars per token
         estimate = client.estimate_tokens("Hello world")  # 11 chars
         assert estimate == 2  # 11 // 4 = 2
@@ -523,11 +517,11 @@ class TestAIClient:
         """Test get_model_info()."""
         mock_get_config.return_value = mock_config
         mock_get_api_key.return_value = MagicMock(get_secret_value=lambda: "test-key")
-        
+
         client = AIClient(config=mock_config)
-        
+
         info = client.get_model_info()
-        
+
         assert info["name"] == "gemini-1.5-pro"
         assert info["is_available"] is True
 
@@ -557,11 +551,11 @@ class TestRetryLogic:
         """Test retry on rate limit error."""
         mock_get_config.return_value = mock_config
         mock_get_api_key.return_value = MagicMock(get_secret_value=lambda: "test-key")
-        
+
         # Create rate limit exception
         rate_limit_exc = Exception("Rate limit exceeded")
         mock_google_exc.ResourceExhausted = type(rate_limit_exc)
-        
+
         mock_model = MagicMock()
         # First call fails, second succeeds
         mock_model.generate_content.side_effect = [
@@ -569,12 +563,12 @@ class TestRetryLogic:
             mock_genai_response,
         ]
         mock_genai.GenerativeModel.return_value = mock_model
-        
+
         grant_consent_programmatic()
         client = AIClient(config=mock_config)
-        
+
         response = client.generate("Test prompt")
-        
+
         assert response.text == "Generated response text"
         assert mock_model.generate_content.call_count == 2
 
@@ -592,20 +586,20 @@ class TestRetryLogic:
         """Test no retry on auth error."""
         mock_get_config.return_value = mock_config
         mock_get_api_key.return_value = MagicMock(get_secret_value=lambda: "test-key")
-        
+
         # Create auth error
         auth_exc = Exception("401 Unauthorized")
-        
+
         mock_model = MagicMock()
         mock_model.generate_content.side_effect = auth_exc
         mock_genai.GenerativeModel.return_value = mock_model
-        
+
         grant_consent_programmatic()
         client = AIClient(config=mock_config)
-        
+
         with pytest.raises(AIClientError):
             client.generate("Test prompt")
-        
+
         # Should only try once (no retries for auth)
         assert mock_model.generate_content.call_count == 1
 
@@ -632,12 +626,12 @@ class TestExceptionMapping:
         """Test mapping of rate limit errors."""
         mock_get_config.return_value = mock_config
         mock_get_api_key.return_value = MagicMock(get_secret_value=lambda: "test-key")
-        
+
         client = AIClient(config=mock_config)
-        
+
         error = Exception("429 rate limit exceeded")
         mapped = client._map_exception(error)
-        
+
         assert isinstance(mapped, AIRateLimitError)
         assert mapped.retriable is True
 
@@ -655,12 +649,12 @@ class TestExceptionMapping:
         """Test mapping of auth errors."""
         mock_get_config.return_value = mock_config
         mock_get_api_key.return_value = MagicMock(get_secret_value=lambda: "test-key")
-        
+
         client = AIClient(config=mock_config)
-        
+
         error = Exception("401 unauthorized")
         mapped = client._map_exception(error)
-        
+
         assert isinstance(mapped, AIAuthError)
         assert mapped.retriable is False
 
@@ -678,12 +672,12 @@ class TestExceptionMapping:
         """Test mapping of token limit errors."""
         mock_get_config.return_value = mock_config
         mock_get_api_key.return_value = MagicMock(get_secret_value=lambda: "test-key")
-        
+
         client = AIClient(config=mock_config)
-        
+
         error = Exception("Token limit exceeded")
         mapped = client._map_exception(error)
-        
+
         assert isinstance(mapped, AITokenLimitError)
         assert mapped.retriable is False
 
@@ -708,11 +702,11 @@ class TestRequireAIDecorator:
         """Test decorator passes when AI available."""
         mock_get_config.return_value = mock_config
         mock_get_api_key.return_value = MagicMock(get_secret_value=lambda: "test-key")
-        
+
         @require_ai
         def my_function():
             return "success"
-        
+
         result = my_function()
         assert result == "success"
 
@@ -725,14 +719,14 @@ class TestRequireAIDecorator:
     ):
         """Test decorator raises when AI disabled."""
         mock_get_config.return_value = mock_disabled_config
-        
+
         @require_ai
         def my_function():
             return "success"
-        
+
         with pytest.raises(AIUnavailableError) as exc_info:
             my_function()
-        
+
         assert exc_info.value.reason == "disabled"
 
 
@@ -758,9 +752,9 @@ class TestGetClient:
         """Test successful client creation."""
         mock_get_config.return_value = mock_config
         mock_get_api_key.return_value = MagicMock(get_secret_value=lambda: "test-key")
-        
+
         client = get_client(config=mock_config)
-        
+
         assert isinstance(client, AIClient)
         assert client.is_available() is True
 
@@ -768,5 +762,5 @@ class TestGetClient:
     def test_get_client_sdk_missing(self):
         """Test client creation when SDK missing."""
         client = get_client()
-        
+
         assert client.is_available() is False

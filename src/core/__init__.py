@@ -11,17 +11,17 @@ Example:
     >>> from src.core import Memory, MediaType, SourcePlatform
     >>> from src.core import PrivacyGate, PrivacyLevel
     >>> from src.core import Timeline, TimelineQuality
-    >>> 
+    >>>
     >>> # Create memories
     >>> memory = Memory(
     ...     source_platform=SourcePlatform.GOOGLE_PHOTOS,
     ...     media_type=MediaType.PHOTO
     ... )
-    >>> 
+    >>>
     >>> # Build timeline
     >>> timeline = Timeline([memory])
     >>> stats = timeline.compute_statistics()
-    >>> 
+    >>>
     >>> # Prepare for AI with privacy
     >>> gate = PrivacyGate()
     >>> gate.settings.privacy_level = PrivacyLevel.STANDARD

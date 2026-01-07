@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-import json
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
@@ -13,14 +12,12 @@ from click.testing import CliRunner
 
 from organizer.cli import cli
 from organizer.models import (
-    LifeChapter,
     LifeStoryReport,
     MediaItem,
     MediaType,
     ParseResult,
     SourcePlatform,
 )
-
 
 # =============================================================================
 # Fixtures
@@ -56,7 +53,7 @@ class TestVersion:
     def test_version_option(self, runner: CliRunner) -> None:
         """Test organizer --version shows version."""
         result = runner.invoke(cli, ["--version"])
-        
+
         assert result.exit_code == 0
         assert "Digital Life Narrative AI" in result.output
         # Version number should be present
@@ -65,7 +62,7 @@ class TestVersion:
     def test_help_option(self, runner: CliRunner) -> None:
         """Test organizer --help shows help."""
         result = runner.invoke(cli, ["--help"])
-        
+
         assert result.exit_code == 0
         assert "Digital Life Narrative AI" in result.output
         assert "analyze" in result.output
@@ -88,7 +85,7 @@ class TestScanCommand:
     ) -> None:
         """Test organizer scan on valid directory."""
         result = runner.invoke(cli, ["scan", str(snapchat_export_dir)])
-        
+
         assert result.exit_code == 0
         # Should show detection results
         assert "Scanning" in result.output or "Detected" in result.output
@@ -101,9 +98,9 @@ class TestScanCommand:
         """Test scan on empty directory."""
         empty_dir = tmp_path / "empty"
         empty_dir.mkdir()
-        
+
         result = runner.invoke(cli, ["scan", str(empty_dir)])
-        
+
         assert result.exit_code == 0
         # Should indicate no exports found
         assert "No recognized" in result.output or "Supported platforms" in result.output
@@ -111,7 +108,7 @@ class TestScanCommand:
     def test_scan_nonexistent_directory(self, runner: CliRunner) -> None:
         """Test scan on nonexistent directory."""
         result = runner.invoke(cli, ["scan", "/nonexistent/path"])
-        
+
         # Should fail with error
         assert result.exit_code != 0
 
@@ -122,7 +119,7 @@ class TestScanCommand:
     ) -> None:
         """Test scan shows detected platforms."""
         result = runner.invoke(cli, ["scan", str(google_photos_export_dir)])
-        
+
         assert result.exit_code == 0
 
 
@@ -149,18 +146,23 @@ class TestAnalyzeCommand:
     def test_analyze_missing_input(self, runner: CliRunner) -> None:
         """Test analyze without input raises error."""
         result = runner.invoke(cli, ["analyze", "-o", "./output"])
-        
+
         # Should fail - missing required input
         assert result.exit_code != 0
 
     def test_analyze_nonexistent_input(self, runner: CliRunner) -> None:
         """Test analyze with nonexistent input."""
-        result = runner.invoke(cli, [
-            "analyze",
-            "-i", "/nonexistent/path",
-            "-o", "./output",
-        ])
-        
+        result = runner.invoke(
+            cli,
+            [
+                "analyze",
+                "-i",
+                "/nonexistent/path",
+                "-o",
+                "./output",
+            ],
+        )
+
         assert result.exit_code != 0
 
     def test_analyze_with_no_ai_flag(
@@ -171,14 +173,14 @@ class TestAnalyzeCommand:
     ) -> None:
         """Test analyze with --no-ai flag uses fallback."""
         output = tmp_path / "report"
-        
-        with patch("organizer.cli.parse_all_sources") as mock_parse, \
-             patch("organizer.cli.detect_export_source") as mock_detect, \
-             patch("organizer.cli.generate_report") as mock_report:
-            
+
+        with patch("organizer.cli.parse_all_sources") as mock_parse, patch(
+            "organizer.cli.detect_export_source"
+        ) as mock_detect, patch("organizer.cli.generate_report") as mock_report:
+
             from organizer.detection import DetectionResult
             from organizer.models import Confidence
-            
+
             # Mock detection
             mock_detect.return_value = [
                 DetectionResult(
@@ -188,7 +190,7 @@ class TestAnalyzeCommand:
                     evidence=["memories_history.json"],
                 )
             ]
-            
+
             # Mock parsing
             mock_parse.return_value = ParseResult(
                 items=[
@@ -204,17 +206,23 @@ class TestAnalyzeCommand:
                 stats={"total": 1},
                 duration_seconds=0.5,
             )
-            
+
             # Mock report generation
             mock_report.return_value = [output.with_suffix(".html")]
-            
-            result = runner.invoke(cli, [
-                "analyze",
-                "-i", str(snapchat_export_dir),
-                "-o", str(output),
-                "--no-ai",
-            ], input="y\nn\n")  # Confirm proceed, decline open
-            
+
+            result = runner.invoke(
+                cli,
+                [
+                    "analyze",
+                    "-i",
+                    str(snapchat_export_dir),
+                    "-o",
+                    str(output),
+                    "--no-ai",
+                ],
+                input="y\nn\n",
+            )  # Confirm proceed, decline open
+
             # Check output mentions fallback
             assert "statistics-only" in result.output or "fallback" in result.output.lower()
 
@@ -226,14 +234,14 @@ class TestAnalyzeCommand:
     ) -> None:
         """Test analyze with --privacy-mode flag."""
         output = tmp_path / "report"
-        
-        with patch("organizer.cli.parse_all_sources") as mock_parse, \
-             patch("organizer.cli.detect_export_source") as mock_detect, \
-             patch("organizer.cli.generate_report") as mock_report:
-            
+
+        with patch("organizer.cli.parse_all_sources") as mock_parse, patch(
+            "organizer.cli.detect_export_source"
+        ) as mock_detect, patch("organizer.cli.generate_report") as mock_report:
+
             from organizer.detection import DetectionResult
             from organizer.models import Confidence
-            
+
             mock_detect.return_value = [
                 DetectionResult(
                     platform=SourcePlatform.SNAPCHAT,
@@ -242,7 +250,7 @@ class TestAnalyzeCommand:
                     evidence=["memories_history.json"],
                 )
             ]
-            
+
             mock_parse.return_value = ParseResult(
                 items=[
                     MediaItem(
@@ -256,17 +264,23 @@ class TestAnalyzeCommand:
                 stats={"total": 1},
                 duration_seconds=0.5,
             )
-            
+
             mock_report.return_value = [output.with_suffix(".html")]
-            
-            result = runner.invoke(cli, [
-                "analyze",
-                "-i", str(snapchat_export_dir),
-                "-o", str(output),
-                "--privacy-mode",
-                "--no-ai",
-            ], input="y\nn\n")
-            
+
+            result = runner.invoke(
+                cli,
+                [
+                    "analyze",
+                    "-i",
+                    str(snapchat_export_dir),
+                    "-o",
+                    str(output),
+                    "--privacy-mode",
+                    "--no-ai",
+                ],
+                input="y\nn\n",
+            )
+
             # Should complete without error
             assert result.exit_code == 0 or "fallback" in result.output.lower()
 
@@ -296,31 +310,32 @@ class TestConfigCommand:
                     local_only_mode=False,
                 ),
             )
-            
+
             result = runner.invoke(cli, ["config", "show"])
-            
+
             assert result.exit_code == 0
             # Should show config values
             assert "gemini" in result.output.lower() or "Configuration" in result.output
 
     def test_config_set_key_prompts(self, runner: CliRunner) -> None:
         """Test organizer config set-key prompts for input."""
-        with patch("organizer.cli.get_config") as mock_config, \
-             patch("organizer.cli.APIKeyManager") as mock_manager:
-            
+        with patch("organizer.cli.get_config") as mock_config, patch(
+            "organizer.cli.APIKeyManager"
+        ) as mock_manager:
+
             mock_config.return_value = MagicMock(
                 key_storage_backend=MagicMock(value="environment"),
                 encrypted_key_file_path=None,
             )
-            
+
             mock_manager_instance = MagicMock()
             mock_manager_instance.store_key = MagicMock()
             mock_manager_instance.retrieve_key.return_value = "test-key"
             mock_manager.return_value = mock_manager_instance
-            
+
             # Provide API key via input
             result = runner.invoke(cli, ["config", "set-key"], input="test-api-key-12345\n")
-            
+
             # Should attempt to store key
             assert "API key" in result.output
 
@@ -330,9 +345,9 @@ class TestConfigCommand:
             mock_config.return_value = MagicMock(
                 key_storage_backend=MagicMock(value="environment"),
             )
-            
+
             result = runner.invoke(cli, ["config", "set-key"], input="\n")
-            
+
             # Should handle empty input gracefully
             assert "No API key" in result.output or result.exit_code == 0
 
@@ -340,12 +355,12 @@ class TestConfigCommand:
         """Test organizer config reset."""
         config_file = tmp_path / "config.yaml"
         config_file.write_text("test: value")
-        
+
         with patch("organizer.cli.AppConfig") as mock_app_config:
             mock_app_config.get_default_config_path.return_value = config_file
-            
+
             result = runner.invoke(cli, ["config", "reset"], input="y\n")
-            
+
             assert result.exit_code == 0
 
     def test_config_set_value(self, runner: CliRunner) -> None:
@@ -356,9 +371,9 @@ class TestConfigCommand:
             mock_cfg.ai.model_name = "gemini-1.5-pro"
             mock_cfg.save_to_yaml = MagicMock()
             mock_config.return_value = mock_cfg
-            
+
             result = runner.invoke(cli, ["config", "set", "ai.model_name", "gemini-1.5-flash"])
-            
+
             # Should attempt to set
             assert result.exit_code == 0 or "Set" in result.output
 
@@ -378,7 +393,7 @@ class TestOrganizeCommand:
     ) -> None:
         """Test organize without output path."""
         result = runner.invoke(cli, ["organize", "-i", str(tmp_path)])
-        
+
         # Should fail - missing output
         assert result.exit_code != 0
 
@@ -390,10 +405,11 @@ class TestOrganizeCommand:
     ) -> None:
         """Test organize with --dry-run."""
         output = tmp_path / "organized"
-        
-        with patch("organizer.cli.parse_all_sources") as mock_parse, \
-             patch("organizer.cli.MediaOrganizer") as mock_organizer:
-            
+
+        with patch("organizer.cli.parse_all_sources") as mock_parse, patch(
+            "organizer.cli.MediaOrganizer"
+        ) as mock_organizer:
+
             mock_parse.return_value = ParseResult(
                 items=[
                     MediaItem(
@@ -408,19 +424,24 @@ class TestOrganizeCommand:
                 stats={"total": 1},
                 duration_seconds=0.5,
             )
-            
+
             mock_org_instance = MagicMock()
             mock_org_instance.plan_organization.return_value = []
             mock_org_instance.preview_plan.return_value = "Preview: 0 files"
             mock_organizer.return_value = mock_org_instance
-            
-            result = runner.invoke(cli, [
-                "organize",
-                "-i", str(local_photos_dir),
-                "-o", str(output),
-                "--dry-run",
-            ])
-            
+
+            result = runner.invoke(
+                cli,
+                [
+                    "organize",
+                    "-i",
+                    str(local_photos_dir),
+                    "-o",
+                    str(output),
+                    "--dry-run",
+                ],
+            )
+
             # Should complete without actually organizing
             assert result.exit_code == 0 or "dry run" in result.output.lower()
 
@@ -436,19 +457,19 @@ class TestErrorHandling:
     def test_invalid_command(self, runner: CliRunner) -> None:
         """Test invalid command gives helpful error."""
         result = runner.invoke(cli, ["invalid-command"])
-        
+
         assert result.exit_code != 0
 
     def test_verbose_flag(self, runner: CliRunner) -> None:
         """Test --verbose flag is accepted."""
         result = runner.invoke(cli, ["--verbose", "--help"])
-        
+
         assert result.exit_code == 0
 
     def test_scan_missing_argument(self, runner: CliRunner) -> None:
         """Test scan without path argument."""
         result = runner.invoke(cli, ["scan"])
-        
+
         assert result.exit_code != 0
         assert "Missing argument" in result.output or "Usage" in result.output
 
@@ -469,15 +490,16 @@ class TestFallbackMessaging:
     ) -> None:
         """Test analyze shows clear fallback warning."""
         output = tmp_path / "report"
-        
-        with patch("organizer.cli.parse_all_sources") as mock_parse, \
-             patch("organizer.cli.detect_export_source") as mock_detect, \
-             patch("organizer.cli.generate_report") as mock_report, \
-             patch("organizer.cli.check_api_key_configured") as mock_key_check:
-            
+
+        with patch("organizer.cli.parse_all_sources") as mock_parse, patch(
+            "organizer.cli.detect_export_source"
+        ) as mock_detect, patch("organizer.cli.generate_report") as mock_report, patch(
+            "organizer.cli.check_api_key_configured"
+        ) as mock_key_check:
+
             from organizer.detection import DetectionResult
             from organizer.models import Confidence
-            
+
             mock_detect.return_value = [
                 DetectionResult(
                     platform=SourcePlatform.SNAPCHAT,
@@ -486,7 +508,7 @@ class TestFallbackMessaging:
                     evidence=["memories_history.json"],
                 )
             ]
-            
+
             mock_parse.return_value = ParseResult(
                 items=[
                     MediaItem(
@@ -501,21 +523,27 @@ class TestFallbackMessaging:
                 stats={"total": 1},
                 duration_seconds=0.5,
             )
-            
+
             mock_report.return_value = [output.with_suffix(".html")]
             mock_key_check.return_value = False  # No API key
-            
-            result = runner.invoke(cli, [
-                "analyze",
-                "-i", str(snapchat_export_dir),
-                "-o", str(output),
-            ], input="y\ny\nn\n")  # Proceed, continue fallback, decline open
-            
+
+            result = runner.invoke(
+                cli,
+                [
+                    "analyze",
+                    "-i",
+                    str(snapchat_export_dir),
+                    "-o",
+                    str(output),
+                ],
+                input="y\ny\nn\n",
+            )  # Proceed, continue fallback, decline open
+
             # Should mention fallback or API key
             output_lower = result.output.lower()
-            assert ("fallback" in output_lower or 
-                    "api key" in output_lower or 
-                    "config" in output_lower)
+            assert (
+                "fallback" in output_lower or "api key" in output_lower or "config" in output_lower
+            )
 
     def test_fallback_suggests_config(
         self,
@@ -525,14 +553,14 @@ class TestFallbackMessaging:
     ) -> None:
         """Test fallback mode suggests running config set-key."""
         output = tmp_path / "report"
-        
-        with patch("organizer.cli.parse_all_sources") as mock_parse, \
-             patch("organizer.cli.detect_export_source") as mock_detect, \
-             patch("organizer.cli.generate_report") as mock_report:
-            
+
+        with patch("organizer.cli.parse_all_sources") as mock_parse, patch(
+            "organizer.cli.detect_export_source"
+        ) as mock_detect, patch("organizer.cli.generate_report") as mock_report:
+
             from organizer.detection import DetectionResult
             from organizer.models import Confidence
-            
+
             mock_detect.return_value = [
                 DetectionResult(
                     platform=SourcePlatform.SNAPCHAT,
@@ -541,7 +569,7 @@ class TestFallbackMessaging:
                     evidence=[],
                 )
             ]
-            
+
             mock_parse.return_value = ParseResult(
                 items=[
                     MediaItem(
@@ -555,15 +583,21 @@ class TestFallbackMessaging:
                 stats={},
                 duration_seconds=0.1,
             )
-            
+
             mock_report.return_value = [output.with_suffix(".html")]
-            
-            result = runner.invoke(cli, [
-                "analyze",
-                "-i", str(snapchat_export_dir),
-                "-o", str(output),
-                "--no-ai",
-            ], input="y\nn\n")
-            
+
+            result = runner.invoke(
+                cli,
+                [
+                    "analyze",
+                    "-i",
+                    str(snapchat_export_dir),
+                    "-o",
+                    str(output),
+                    "--no-ai",
+                ],
+                input="y\nn\n",
+            )
+
             # Should mention config or set-key for enabling AI
             assert result.exit_code == 0 or "statistics" in result.output.lower()

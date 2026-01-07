@@ -286,18 +286,16 @@ class FallbackAnalyzer:
         # Add platform breakdown
         if platform_counts:
             platform_str = ", ".join(
-                f"{v} from {k}" for k, v in sorted(
-                    platform_counts.items(), key=lambda x: x[1], reverse=True
-                )
+                f"{v} from {k}"
+                for k, v in sorted(platform_counts.items(), key=lambda x: x[1], reverse=True)
             )
             narrative_parts.append(f"Sources: {platform_str}.")
 
         # Add type breakdown
         if type_counts:
             type_str = ", ".join(
-                f"{v} {k}s" for k, v in sorted(
-                    type_counts.items(), key=lambda x: x[1], reverse=True
-                )
+                f"{v} {k}s"
+                for k, v in sorted(type_counts.items(), key=lambda x: x[1], reverse=True)
             )
             narrative_parts.append(f"Content: {type_str}.")
 
@@ -310,9 +308,7 @@ class FallbackAnalyzer:
             narrative_parts.append(f"Locations: {loc_str}.")
 
         narrative_parts.append("")
-        narrative_parts.append(
-            "To unlock rich narrative analysis, configure your Gemini API key."
-        )
+        narrative_parts.append("To unlock rich narrative analysis, configure your Gemini API key.")
 
         # Get sample media IDs
         sample_ids = [item.id for item in items[:5]]
@@ -321,10 +317,12 @@ class FallbackAnalyzer:
         location_summary = None
         if locations:
             top_locations = sorted(
-                [(loc, sum(1 for i in items if i.location and i.location.place_name == loc))
-                 for loc in locations],
+                [
+                    (loc, sum(1 for i in items if i.location and i.location.place_name == loc))
+                    for loc in locations
+                ],
                 key=lambda x: x[1],
-                reverse=True
+                reverse=True,
             )
             if top_locations:
                 location_summary = top_locations[0][0]
@@ -405,16 +403,12 @@ This report was generated without AI-powered narrative analysis. Your collection
             summary += f" ({ts_pct:.0f}% with timestamps)"
 
         if stats["locations"]:
-            top_locs = sorted(
-                stats["locations"].items(), key=lambda x: x[1], reverse=True
-            )[:3]
+            top_locs = sorted(stats["locations"].items(), key=lambda x: x[1], reverse=True)[:3]
             loc_str = ", ".join(f"{loc}" for loc, _ in top_locs)
             summary += f"\n- Top locations: {loc_str}"
 
         if stats["people"]:
-            top_people = sorted(
-                stats["people"].items(), key=lambda x: x[1], reverse=True
-            )[:3]
+            top_people = sorted(stats["people"].items(), key=lambda x: x[1], reverse=True)[:3]
             people_str = ", ".join(f"{person}" for person, _ in top_people)
             summary += f"\n- Frequently tagged: {people_str}"
 
@@ -579,9 +573,7 @@ Then re-run your analysis to experience the full narrative reconstruction."""
             notes.append(f"People tagged in {people_pct:.0f}% of items")
 
         # Confidence levels
-        low_conf = sum(
-            1 for i in items if i.timestamp_confidence == Confidence.LOW
-        )
+        low_conf = sum(1 for i in items if i.timestamp_confidence == Confidence.LOW)
         if low_conf > total * 0.3:
             notes.append("Many items have low-confidence timestamps")
 
@@ -603,6 +595,7 @@ Then re-run your analysis to experience the full narrative reconstruction."""
         Returns:
             Sorted items (items without timestamps at end).
         """
+
         def sort_key(item: MediaItem) -> tuple[int, datetime]:
             if item.timestamp:
                 return (0, item.timestamp)

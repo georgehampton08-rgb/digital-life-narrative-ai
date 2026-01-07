@@ -57,9 +57,9 @@ if TYPE_CHECKING:
 
 class PromptCategory(str, Enum):
     """Categories of prompts for organizational and filtering purposes.
-    
+
     Each category represents a distinct type of AI analysis task.
-    
+
     Attributes:
         CHAPTER_DETECTION: Identifying life chapters from timeline data.
         NARRATIVE_GENERATION: Writing narratives for identified chapters.
@@ -69,7 +69,7 @@ class PromptCategory(str, Enum):
         GAP_ANALYSIS: Analyzing and explaining gaps in the timeline.
         REFINEMENT: Improving or refining previous AI outputs.
     """
-    
+
     CHAPTER_DETECTION = "chapter_detection"
     NARRATIVE_GENERATION = "narrative_generation"
     EXECUTIVE_SUMMARY = "executive_summary"
@@ -87,10 +87,10 @@ class PromptCategory(str, Enum):
 @dataclass
 class PromptTemplate:
     """Metadata and content for a prompt template.
-    
+
     Each template defines a specific AI task with system instruction,
     user prompt (with placeholders), expected output schema, and metadata.
-    
+
     Attributes:
         id: Unique identifier (e.g., "chapter_detection_v1").
         category: Type of prompt for filtering.
@@ -102,7 +102,7 @@ class PromptTemplate:
         optional_variables: Set of variables that CAN be provided.
         estimated_output_tokens: Estimated tokens in response for planning.
         description: Human-readable description of the prompt's purpose.
-    
+
     Example:
         >>> template = PromptTemplate(
         ...     id="example_v1",
@@ -114,7 +114,7 @@ class PromptTemplate:
         ... )
         >>> system, user = template.render(data="sample data")
     """
-    
+
     id: str
     category: PromptCategory
     version: str
@@ -125,22 +125,22 @@ class PromptTemplate:
     optional_variables: set[str] = field(default_factory=set)
     estimated_output_tokens: int = 1000
     description: str = ""
-    
+
     def render(self, **variables: Any) -> tuple[str, str]:
         """Render the template with provided variables.
-        
+
         Substitutes placeholders in the user prompt template with values.
         Validates that all required variables are provided.
-        
+
         Args:
             **variables: Key-value pairs for template substitution.
-        
+
         Returns:
             Tuple of (system_instruction, rendered_user_prompt).
-        
+
         Raises:
             ValueError: If required variables are missing.
-        
+
         Example:
             >>> system, user = template.render(
             ...     date_range="2020-2023",
@@ -150,35 +150,33 @@ class PromptTemplate:
         # Validate required variables
         missing = self.validate_variables(variables)
         if missing:
-            raise ValueError(
-                f"Missing required variables for prompt '{self.id}': {missing}"
-            )
-        
+            raise ValueError(f"Missing required variables for prompt '{self.id}': {missing}")
+
         # Add output_schema to variables if present
         if self.output_schema and "output_schema" not in variables:
             variables["output_schema"] = render_output_schema(self.output_schema)
-        
+
         # Render the user prompt using safe_substitute to handle optional vars
         template = Template(self.user_prompt_template)
-        
+
         # For required vars, use substitute; wrap in safe approach
         try:
             rendered = template.substitute(variables)
         except KeyError:
             # Fall back to safe_substitute for any unhandled optionals
             rendered = template.safe_substitute(variables)
-        
+
         return self.system_instruction, rendered
-    
+
     def validate_variables(self, variables: dict[str, Any]) -> list[str]:
         """Check for missing required variables.
-        
+
         Args:
             variables: Dictionary of provided variables.
-        
+
         Returns:
             List of missing required variable names (empty if all present).
-        
+
         Example:
             >>> missing = template.validate_variables({"data": "..."})
             >>> if missing:
@@ -192,10 +190,10 @@ class PromptTemplate:
 @dataclass
 class PromptContext:
     """Context data prepared for prompt rendering.
-    
+
     Aggregates various data about the timeline for use in prompts.
     This is a convenience container for common prompt variables.
-    
+
     Attributes:
         timeline_summary: Statistical summary of the timeline.
         sample_memories: JSON string of sampled memories.
@@ -206,7 +204,7 @@ class PromptContext:
         people_summary: Optional summary of people appearing in memories.
         existing_chapters: Optional JSON of previously detected chapters.
         custom_context: Additional context as key-value pairs.
-    
+
     Example:
         >>> context = PromptContext(
         ...     timeline_summary="5000 memories, peak in 2019...",
@@ -216,7 +214,7 @@ class PromptContext:
         ...     platform_breakdown="Snapchat: 500, Google Photos: 4500",
         ... )
     """
-    
+
     timeline_summary: str = ""
     sample_memories: str = "[]"
     date_range: str = ""
@@ -226,10 +224,10 @@ class PromptContext:
     people_summary: str | None = None
     existing_chapters: str | None = None
     custom_context: dict[str, Any] | None = None
-    
+
     def to_dict(self) -> dict[str, Any]:
         """Convert context to dictionary for template rendering.
-        
+
         Returns:
             Dictionary of all context values.
         """
@@ -240,7 +238,7 @@ class PromptContext:
             "total_memories": self.total_memories,
             "platform_breakdown": self.platform_breakdown,
         }
-        
+
         if self.location_summary:
             result["location_summary"] = self.location_summary
         if self.people_summary:
@@ -249,7 +247,7 @@ class PromptContext:
             result["existing_chapters"] = self.existing_chapters
         if self.custom_context:
             result.update(self.custom_context)
-        
+
         return result
 
 
@@ -258,7 +256,8 @@ class PromptContext:
 # =============================================================================
 
 
-LIFE_HISTORIAN_SYSTEM: str = textwrap.dedent("""
+LIFE_HISTORIAN_SYSTEM: str = textwrap.dedent(
+    """
     You are a skilled life historian and narrative analyst. Your expertise is in
     examining personal media timelines to identify meaningful life chapters,
     patterns, and narratives.
@@ -278,10 +277,12 @@ LIFE_HISTORIAN_SYSTEM: str = textwrap.dedent("""
     - Note when you're inferring vs. when data clearly shows something
     - Keep narratives warm but not overly sentimental
     - Acknowledge data limitations when relevant
-""").strip()
+"""
+).strip()
 
 
-STRUCTURED_OUTPUT_SYSTEM: str = textwrap.dedent("""
+STRUCTURED_OUTPUT_SYSTEM: str = textwrap.dedent(
+    """
     You are a data analyst that produces structured JSON output.
     
     Rules:
@@ -290,10 +291,12 @@ STRUCTURED_OUTPUT_SYSTEM: str = textwrap.dedent("""
     - Follow the exact schema provided
     - Use null for missing/uncertain values
     - Dates should be in ISO format (YYYY-MM-DD)
-""").strip()
+"""
+).strip()
 
 
-PATTERN_ANALYST_SYSTEM: str = textwrap.dedent("""
+PATTERN_ANALYST_SYSTEM: str = textwrap.dedent(
+    """
     You are a behavioral pattern analyst specializing in personal media analysis.
     
     Your expertise:
@@ -307,7 +310,8 @@ PATTERN_ANALYST_SYSTEM: str = textwrap.dedent("""
     - Quantify patterns when possible ("3x more photos on weekends")
     - Note confidence levels for each observation
     - Distinguish correlation from causation
-""").strip()
+"""
+).strip()
 
 
 # Combined system instructions for common use cases
@@ -404,7 +408,8 @@ CHAPTER_DETECTION_PROMPT = PromptTemplate(
     version="1.0.0",
     description="Identify distinct life chapters from a media timeline.",
     system_instruction=HISTORIAN_WITH_JSON_SYSTEM,
-    user_prompt_template=textwrap.dedent("""
+    user_prompt_template=textwrap.dedent(
+        """
         Analyze this personal media timeline and identify distinct life chapters.
         
         ## Timeline Overview
@@ -437,11 +442,17 @@ CHAPTER_DETECTION_PROMPT = PromptTemplate(
         $output_schema
         
         Respond with JSON only.
-    """).strip(),
+    """
+    ).strip(),
     output_schema=CHAPTER_DETECTION_SCHEMA,
     required_variables={
-        "date_range", "total_memories", "platform_breakdown",
-        "timeline_summary", "sample_memories", "min_chapters", "max_chapters",
+        "date_range",
+        "total_memories",
+        "platform_breakdown",
+        "timeline_summary",
+        "sample_memories",
+        "min_chapters",
+        "max_chapters",
     },
     estimated_output_tokens=2000,
 )
@@ -453,7 +464,8 @@ NARRATIVE_GENERATION_PROMPT = PromptTemplate(
     version="1.0.0",
     description="Write a narrative for a specific life chapter.",
     system_instruction=LIFE_HISTORIAN_SYSTEM,
-    user_prompt_template=textwrap.dedent("""
+    user_prompt_template=textwrap.dedent(
+        """
         Write a narrative for this life chapter.
         
         ## Chapter Information
@@ -486,12 +498,20 @@ NARRATIVE_GENERATION_PROMPT = PromptTemplate(
         $output_schema
         
         Respond with JSON only.
-    """).strip(),
+    """
+    ).strip(),
     output_schema=NARRATIVE_GENERATION_SCHEMA,
     required_variables={
-        "chapter_title", "chapter_start", "chapter_end", "chapter_themes",
-        "memory_count", "chapter_memories", "chapter_number", "total_chapters",
-        "previous_chapter_summary", "next_chapter_summary",
+        "chapter_title",
+        "chapter_start",
+        "chapter_end",
+        "chapter_themes",
+        "memory_count",
+        "chapter_memories",
+        "chapter_number",
+        "total_chapters",
+        "previous_chapter_summary",
+        "next_chapter_summary",
     },
     estimated_output_tokens=1500,
 )
@@ -503,7 +523,8 @@ EXECUTIVE_SUMMARY_PROMPT = PromptTemplate(
     version="1.0.0",
     description="Create an executive summary of the entire life story.",
     system_instruction=LIFE_HISTORIAN_SYSTEM,
-    user_prompt_template=textwrap.dedent("""
+    user_prompt_template=textwrap.dedent(
+        """
         Write an executive summary of this person's life story based on the chapters identified.
         
         ## Life Chapters
@@ -527,10 +548,14 @@ EXECUTIVE_SUMMARY_PROMPT = PromptTemplate(
         $output_schema
         
         Respond with JSON only.
-    """).strip(),
+    """
+    ).strip(),
     output_schema=EXECUTIVE_SUMMARY_SCHEMA,
     required_variables={
-        "chapters_summary", "total_memories", "date_range", "platforms",
+        "chapters_summary",
+        "total_memories",
+        "date_range",
+        "platforms",
     },
     estimated_output_tokens=2000,
 )
@@ -542,7 +567,8 @@ PLATFORM_ANALYSIS_PROMPT = PromptTemplate(
     version="1.0.0",
     description="Analyze cross-platform usage patterns.",
     system_instruction=PATTERN_ANALYST_SYSTEM + "\n\n" + STRUCTURED_OUTPUT_SYSTEM,
-    user_prompt_template=textwrap.dedent("""
+    user_prompt_template=textwrap.dedent(
+        """
         Analyze how this person uses different platforms to capture memories.
         
         ## Platform Statistics
@@ -567,7 +593,8 @@ PLATFORM_ANALYSIS_PROMPT = PromptTemplate(
         $output_schema
         
         Respond with JSON only.
-    """).strip(),
+    """
+    ).strip(),
     output_schema=PLATFORM_ANALYSIS_SCHEMA,
     required_variables={"platform_stats", "platform_samples"},
     estimated_output_tokens=1500,
@@ -580,7 +607,8 @@ GAP_ANALYSIS_PROMPT = PromptTemplate(
     version="1.0.0",
     description="Analyze gaps in the media timeline.",
     system_instruction=PATTERN_ANALYST_SYSTEM + "\n\n" + STRUCTURED_OUTPUT_SYSTEM,
-    user_prompt_template=textwrap.dedent("""
+    user_prompt_template=textwrap.dedent(
+        """
         Analyze the gaps in this person's media timeline.
         
         ## Detected Gaps
@@ -608,7 +636,8 @@ GAP_ANALYSIS_PROMPT = PromptTemplate(
         $output_schema
         
         Respond with JSON only.
-    """).strip(),
+    """
+    ).strip(),
     output_schema=GAP_ANALYSIS_SCHEMA,
     required_variables={"gaps_data", "gap_context", "timeline_summary"},
     estimated_output_tokens=1500,
@@ -621,7 +650,8 @@ PATTERN_DETECTION_PROMPT = PromptTemplate(
     version="1.0.0",
     description="Detect behavioral patterns in media timeline.",
     system_instruction=PATTERN_ANALYST_SYSTEM + "\n\n" + STRUCTURED_OUTPUT_SYSTEM,
-    user_prompt_template=textwrap.dedent("""
+    user_prompt_template=textwrap.dedent(
+        """
         Analyze this media timeline to identify behavioral patterns.
         
         ## Timeline Overview
@@ -658,7 +688,8 @@ PATTERN_DETECTION_PROMPT = PromptTemplate(
         }
         
         Respond with JSON only.
-    """).strip(),
+    """
+    ).strip(),
     required_variables={"date_range", "total_memories", "timeline_summary", "sample_memories"},
     estimated_output_tokens=1500,
 )
@@ -670,7 +701,8 @@ CHAPTER_REFINEMENT_PROMPT = PromptTemplate(
     version="1.0.0",
     description="Refine previously detected chapters based on feedback.",
     system_instruction=HISTORIAN_WITH_JSON_SYSTEM,
-    user_prompt_template=textwrap.dedent("""
+    user_prompt_template=textwrap.dedent(
+        """
         Refine the previously identified life chapters based on new information.
         
         ## Current Chapters
@@ -693,7 +725,8 @@ CHAPTER_REFINEMENT_PROMPT = PromptTemplate(
         $output_schema
         
         Respond with JSON only.
-    """).strip(),
+    """
+    ).strip(),
     output_schema=CHAPTER_DETECTION_SCHEMA,
     required_variables={"existing_chapters", "refinement_feedback", "additional_context"},
     estimated_output_tokens=2000,
@@ -710,13 +743,13 @@ PROMPT_REGISTRY: dict[str, PromptTemplate] = {}
 
 def register_prompt(template: PromptTemplate) -> None:
     """Register a prompt template in the global registry.
-    
+
     Args:
         template: The PromptTemplate to register.
-    
+
     Raises:
         ValueError: If a prompt with the same ID is already registered.
-    
+
     Example:
         >>> custom_prompt = PromptTemplate(id="custom_v1", ...)
         >>> register_prompt(custom_prompt)
@@ -728,46 +761,44 @@ def register_prompt(template: PromptTemplate) -> None:
 
 def get_prompt(prompt_id: str) -> PromptTemplate:
     """Retrieve a prompt template by ID.
-    
+
     Args:
         prompt_id: The unique identifier of the prompt.
-    
+
     Returns:
         The corresponding PromptTemplate.
-    
+
     Raises:
         KeyError: If no prompt with the given ID exists.
-    
+
     Example:
         >>> template = get_prompt("chapter_detection_v1")
         >>> system, user = template.render(...)
     """
     if prompt_id not in PROMPT_REGISTRY:
         available = ", ".join(sorted(PROMPT_REGISTRY.keys()))
-        raise KeyError(
-            f"Prompt '{prompt_id}' not found. Available prompts: {available}"
-        )
+        raise KeyError(f"Prompt '{prompt_id}' not found. Available prompts: {available}")
     return PROMPT_REGISTRY[prompt_id]
 
 
 def list_prompts(category: PromptCategory | None = None) -> list[PromptTemplate]:
     """List available prompts, optionally filtered by category.
-    
+
     Args:
         category: If provided, only return prompts in this category.
-    
+
     Returns:
         List of matching PromptTemplate objects.
-    
+
     Example:
         >>> all_prompts = list_prompts()
         >>> narrative_prompts = list_prompts(PromptCategory.NARRATIVE_GENERATION)
     """
     templates = list(PROMPT_REGISTRY.values())
-    
+
     if category is not None:
         templates = [t for t in templates if t.category == category]
-    
+
     return sorted(templates, key=lambda t: t.id)
 
 
@@ -800,26 +831,26 @@ def prepare_memories_for_prompt(
     privacy_level: str = "standard",
 ) -> str:
     """Convert memories to prompt-safe JSON string.
-    
+
     Samples memories if there are too many, applies privacy filtering,
     and formats as compact JSON ready for prompt insertion.
-    
+
     Args:
         memories: List of Memory objects to prepare.
         max_items: Maximum number of memories to include.
         privacy_level: Privacy level ("strict", "standard", "detailed").
                        Controls what fields are included.
-    
+
     Returns:
         JSON string of prepared memories.
-    
+
     Example:
         >>> memories_json = prepare_memories_for_prompt(memories, max_items=50)
         >>> system, user = template.render(sample_memories=memories_json, ...)
     """
     if not memories:
         return "[]"
-    
+
     # Sample if too many
     if len(memories) > max_items:
         # Stratified sampling: take evenly across timeline
@@ -827,7 +858,7 @@ def prepare_memories_for_prompt(
         sampled = memories[::step][:max_items]
     else:
         sampled = memories
-    
+
     # Convert to prompt-safe dictionaries
     result = []
     for memory in sampled:
@@ -836,38 +867,40 @@ def prepare_memories_for_prompt(
             "media_type": memory.media_type.value if memory.media_type else None,
             "platform": memory.source_platform.value if memory.source_platform else None,
         }
-        
+
         # Privacy filtering
         if privacy_level != "strict":
             if memory.location:
                 # Only include city/country level
                 item["location"] = memory.location.to_ai_summary()
-            
+
             if privacy_level == "detailed" and memory.caption:
                 # Truncate caption for privacy
-                item["caption"] = memory.caption[:100] + "..." if len(memory.caption) > 100 else memory.caption
-            
+                item["caption"] = (
+                    memory.caption[:100] + "..." if len(memory.caption) > 100 else memory.caption
+                )
+
             if memory.people:
                 # Just count, don't include names
                 item["people_count"] = len(memory.people)
-        
+
         result.append(item)
-    
+
     return json.dumps(result, indent=2, default=str)
 
 
 def prepare_timeline_summary(memories: list["Memory"]) -> str:
     """Generate statistical summary for prompt context.
-    
+
     Creates a text summary of the timeline including yearly distribution,
     platform breakdown, location patterns, and media types.
-    
+
     Args:
         memories: List of Memory objects to summarize.
-    
+
     Returns:
         Multi-line string summary suitable for prompt insertion.
-    
+
     Example:
         >>> summary = prepare_timeline_summary(memories)
         >>> print(summary)
@@ -878,75 +911,75 @@ def prepare_timeline_summary(memories: list["Memory"]) -> str:
     """
     if not memories:
         return "No memories in timeline."
-    
+
     lines = []
-    
+
     # Yearly distribution
     years: Counter[int] = Counter()
     for m in memories:
         if m.timestamp:
             years[m.timestamp.year] += 1
-    
+
     if years:
         lines.append("### Yearly Distribution")
         for year in sorted(years.keys()):
             lines.append(f"- {year}: {years[year]} memories")
-    
+
     # Platform distribution
     platforms: Counter[str] = Counter()
     for m in memories:
         if m.source_platform:
             platforms[m.source_platform.value] += 1
-    
+
     if platforms:
         lines.append("\n### Platform Distribution")
         for platform, count in platforms.most_common():
             lines.append(f"- {platform}: {count} memories")
-    
+
     # Media type distribution
     media_types: Counter[str] = Counter()
     for m in memories:
         if m.media_type:
             media_types[m.media_type.value] += 1
-    
+
     if media_types:
         lines.append("\n### Media Types")
         for mt, count in media_types.most_common():
             lines.append(f"- {mt}: {count}")
-    
+
     # Location summary
     countries: Counter[str] = Counter()
     for m in memories:
         if m.location and m.location.country:
             countries[m.location.country] += 1
-    
+
     if countries:
         lines.append("\n### Locations (by country)")
         for country, count in countries.most_common(10):
             lines.append(f"- {country}: {count} memories")
-    
+
     return "\n".join(lines)
 
 
 def prepare_chapters_for_prompt(chapters: list[Any]) -> str:
     """Format existing chapters for context in prompts.
-    
+
     Converts chapter objects to a readable summary format for use
     in refinement or summary prompts.
-    
+
     Args:
         chapters: List of chapter dictionaries or objects with title,
                   start_date, end_date, and themes attributes.
-    
+
     Returns:
         Formatted string summary of chapters.
-    
+
     Example:
         >>> chapters_str = prepare_chapters_for_prompt(detected_chapters)
     """
     if not chapters:
         return "No chapters detected yet."
-    
+
     lines = []
     for i, chapter in enumerate(chapters, 1):
         if isinstance(chapter, dict):
@@ -960,23 +993,23 @@ def prepare_chapters_for_prompt(chapters: list[Any]) -> str:
             start = getattr(chapter, "start_date", "unknown")
             end = getattr(chapter, "end_date", "unknown")
             themes = getattr(chapter, "themes", [])
-        
+
         themes_str = ", ".join(themes) if themes else "no themes"
         lines.append(f"{i}. **{title}** ({start} to {end})")
         lines.append(f"   Themes: {themes_str}")
-    
+
     return "\n".join(lines)
 
 
 def render_output_schema(schema: dict[str, Any]) -> str:
     """Convert schema dict to pretty JSON string for prompt.
-    
+
     Args:
         schema: Dictionary representing the expected JSON schema.
-    
+
     Returns:
         Formatted JSON string suitable for prompt insertion.
-    
+
     Example:
         >>> schema_str = render_output_schema({"name": "string", "count": "integer"})
     """
@@ -985,10 +1018,10 @@ def render_output_schema(schema: dict[str, Any]) -> str:
 
 def prepare_platform_breakdown(memories: list["Memory"]) -> str:
     """Generate platform breakdown string for prompts.
-    
+
     Args:
         memories: List of Memory objects.
-    
+
     Returns:
         Comma-separated platform counts (e.g., "Snapchat: 500, Google Photos: 2000").
     """
@@ -996,46 +1029,46 @@ def prepare_platform_breakdown(memories: list["Memory"]) -> str:
     for m in memories:
         if m.source_platform:
             platforms[m.source_platform.value] += 1
-    
+
     if not platforms:
         return "No platform information available"
-    
+
     return ", ".join(f"{p}: {c}" for p, c in platforms.most_common())
 
 
 def prepare_date_range(memories: list["Memory"]) -> str:
     """Generate date range string for prompts.
-    
+
     Args:
         memories: List of Memory objects.
-    
+
     Returns:
         Date range string (e.g., "2015-01-01 to 2023-12-31").
     """
     dates = [m.timestamp for m in memories if m.timestamp]
-    
+
     if not dates:
         return "Unknown date range"
-    
+
     min_date = min(dates)
     max_date = max(dates)
-    
+
     return f"{min_date.strftime('%Y-%m-%d')} to {max_date.strftime('%Y-%m-%d')}"
 
 
 def build_prompt_context(memories: list["Memory"], **kwargs: Any) -> PromptContext:
     """Build a complete PromptContext from memories.
-    
+
     Convenience function that calls all prepare_* functions to build
     a complete context object.
-    
+
     Args:
         memories: List of Memory objects.
         **kwargs: Additional context to include.
-    
+
     Returns:
         Populated PromptContext object.
-    
+
     Example:
         >>> context = build_prompt_context(memories)
         >>> system, user = template.render(**context.to_dict())

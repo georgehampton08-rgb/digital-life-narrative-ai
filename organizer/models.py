@@ -452,7 +452,5 @@ class AnalysisConfig(BaseModel):
     def validate_min_chapter_duration(cls, v: int) -> int:
         """Validate minimum chapter duration is reasonable."""
         if v > 365:
-            raise ValueError(
-                "min_chapter_duration_days should not exceed 365 days"
-            )
+            raise ValueError("min_chapter_duration_days should not exceed 365 days")
         return v

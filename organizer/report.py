@@ -98,14 +98,14 @@ def truncate_text(text: str, max_length: int = 200) -> str:
     """
     if len(text) <= max_length:
         return text
-    return text[:max_length - 3].rsplit(" ", 1)[0] + "..."
+    return text[: max_length - 3].rsplit(" ", 1)[0] + "..."
 
 
 # =============================================================================
 # HTML Template
 # =============================================================================
 
-HTML_TEMPLATE = '''<!DOCTYPE html>
+HTML_TEMPLATE = """<!DOCTYPE html>
 <html lang="en" data-theme="light">
 <head>
     <meta charset="UTF-8">
@@ -869,7 +869,7 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
         });
     </script>
 </body>
-</html>'''
+</html>"""
 
 
 # =============================================================================
@@ -895,9 +895,18 @@ class ReportGenerator:
     """
 
     CHAPTER_COLORS = [
-        "#6366f1", "#8b5cf6", "#a855f7", "#d946ef",
-        "#ec4899", "#f43f5e", "#ef4444", "#f97316",
-        "#eab308", "#22c55e", "#14b8a6", "#0ea5e9",
+        "#6366f1",
+        "#8b5cf6",
+        "#a855f7",
+        "#d946ef",
+        "#ec4899",
+        "#f43f5e",
+        "#ef4444",
+        "#f97316",
+        "#eab308",
+        "#22c55e",
+        "#14b8a6",
+        "#0ea5e9",
     ]
 
     PLATFORM_ICONS = {
@@ -1089,9 +1098,11 @@ class ReportGenerator:
             subtitle = "An AI-powered narrative of your journey"
 
         # Count unique platforms from chapters or calculate
-        platforms_count = len(set(
-            insight.platform.value for insight in report.platform_insights
-        )) if report.platform_insights else 1
+        platforms_count = (
+            len(set(insight.platform.value for insight in report.platform_insights))
+            if report.platform_insights
+            else 1
+        )
 
         return {
             "report": report,

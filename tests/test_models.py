@@ -20,10 +20,8 @@ from organizer.models import (
     MediaItem,
     MediaType,
     ParseResult,
-    PlatformBehaviorInsight,
     SourcePlatform,
 )
-
 
 # =============================================================================
 # Enum Tests
@@ -82,16 +80,19 @@ class TestGeoLocation:
         assert loc.longitude == 0.0
         assert loc.place_name is None
 
-    @pytest.mark.parametrize("latitude,longitude,valid", [
-        (0.0, 0.0, True),
-        (90.0, 180.0, True),
-        (-90.0, -180.0, True),
-        (41.8781, -87.6298, True),  # Chicago
-        (91.0, 0.0, False),  # Invalid latitude
-        (-91.0, 0.0, False),  # Invalid latitude
-        (0.0, 181.0, False),  # Invalid longitude
-        (0.0, -181.0, False),  # Invalid longitude
-    ])
+    @pytest.mark.parametrize(
+        "latitude,longitude,valid",
+        [
+            (0.0, 0.0, True),
+            (90.0, 180.0, True),
+            (-90.0, -180.0, True),
+            (41.8781, -87.6298, True),  # Chicago
+            (91.0, 0.0, False),  # Invalid latitude
+            (-91.0, 0.0, False),  # Invalid latitude
+            (0.0, 181.0, False),  # Invalid longitude
+            (0.0, -181.0, False),  # Invalid longitude
+        ],
+    )
     def test_geo_location_bounds(
         self,
         latitude: float,
@@ -275,17 +276,13 @@ class TestLifeChapter:
 class TestLifeStoryReport:
     """Tests for LifeStoryReport model."""
 
-    def test_life_story_report_creation(
-        self, sample_life_report: LifeStoryReport
-    ) -> None:
+    def test_life_story_report_creation(self, sample_life_report: LifeStoryReport) -> None:
         """Test LifeStoryReport creation."""
         assert sample_life_report.total_media_analyzed == 33
         assert len(sample_life_report.chapters) == 3
         assert sample_life_report.is_fallback_mode is False
 
-    def test_life_story_report_serialization(
-        self, sample_life_report: LifeStoryReport
-    ) -> None:
+    def test_life_story_report_serialization(self, sample_life_report: LifeStoryReport) -> None:
         """Test LifeStoryReport serialization to JSON."""
         json_str = sample_life_report.model_dump_json()
         data = json.loads(json_str)
@@ -295,9 +292,7 @@ class TestLifeStoryReport:
         assert data["ai_model_used"] == "gemini-1.5-pro"
         assert data["is_fallback_mode"] is False
 
-    def test_life_story_report_roundtrip(
-        self, sample_life_report: LifeStoryReport
-    ) -> None:
+    def test_life_story_report_roundtrip(self, sample_life_report: LifeStoryReport) -> None:
         """Test JSON roundtrip serialization."""
         json_str = sample_life_report.model_dump_json()
         restored = LifeStoryReport.model_validate_json(json_str)
@@ -320,9 +315,7 @@ class TestLifeStoryReport:
 class TestParseResult:
     """Tests for ParseResult model."""
 
-    def test_parse_result_creation(
-        self, sample_parse_result: ParseResult
-    ) -> None:
+    def test_parse_result_creation(self, sample_parse_result: ParseResult) -> None:
         """Test ParseResult creation."""
         assert len(sample_parse_result.items) > 0
         assert len(sample_parse_result.source_paths) == 3

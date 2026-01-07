@@ -159,9 +159,7 @@ class AIClient:
         self._api_key = api_key or self._retrieve_api_key()
 
         if not self._api_key:
-            raise APIKeyMissingError(
-                "No API key available. Configure with 'organizer configure'."
-            )
+            raise APIKeyMissingError("No API key available. Configure with 'organizer configure'.")
 
         # Configure the genai library
         genai.configure(api_key=self._api_key)
@@ -420,7 +418,9 @@ class AIClient:
                 # Rate limit - retry with backoff
                 last_exception = e
                 wait_time = self._calculate_backoff(attempt)
-                logger.warning(f"Rate limit hit, waiting {wait_time:.1f}s (attempt {attempt + 1}/{retries + 1})")
+                logger.warning(
+                    f"Rate limit hit, waiting {wait_time:.1f}s (attempt {attempt + 1}/{retries + 1})"
+                )
 
                 if attempt < retries:
                     time.sleep(wait_time)
@@ -435,7 +435,9 @@ class AIClient:
                 # Temporary server error - retry
                 last_exception = e
                 wait_time = self._calculate_backoff(attempt)
-                logger.warning(f"Service unavailable, waiting {wait_time:.1f}s (attempt {attempt + 1}/{retries + 1})")
+                logger.warning(
+                    f"Service unavailable, waiting {wait_time:.1f}s (attempt {attempt + 1}/{retries + 1})"
+                )
 
                 if attempt < retries:
                     time.sleep(wait_time)
@@ -447,7 +449,9 @@ class AIClient:
                 # Server error - retry
                 last_exception = e
                 wait_time = self._calculate_backoff(attempt)
-                logger.warning(f"Server error, waiting {wait_time:.1f}s (attempt {attempt + 1}/{retries + 1})")
+                logger.warning(
+                    f"Server error, waiting {wait_time:.1f}s (attempt {attempt + 1}/{retries + 1})"
+                )
 
                 if attempt < retries:
                     time.sleep(wait_time)
@@ -496,7 +500,7 @@ class AIClient:
         max_delay = 60.0
 
         # Exponential backoff: 1s, 2s, 4s, 8s, ...
-        delay = base_delay * (2 ** attempt)
+        delay = base_delay * (2**attempt)
 
         # Add jitter (±25%)
         jitter = delay * 0.25 * (random.random() * 2 - 1)
@@ -519,9 +523,7 @@ class AIClient:
         # Check for blocked response
         if not response.candidates:
             if response.prompt_feedback:
-                raise AIRequestError(
-                    f"Response blocked: {response.prompt_feedback}"
-                )
+                raise AIRequestError(f"Response blocked: {response.prompt_feedback}")
             raise AIRequestError("Empty response from API")
 
         candidate = response.candidates[0]

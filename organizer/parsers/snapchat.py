@@ -286,7 +286,8 @@ class SnapchatParser(BaseParser):
         media_files: list[Path] = []
         if memories_dir.exists():
             media_files = [
-                f for f in memories_dir.iterdir()
+                f
+                for f in memories_dir.iterdir()
                 if f.is_file() and f.suffix.lower() in self.supported_extensions
             ]
 
@@ -558,8 +559,7 @@ class SnapchatParser(BaseParser):
 
             # Check if message has media
             has_media = any(
-                key in msg
-                for key in ["Media Type", "media_type", "media", "attachment"]
+                key in msg for key in ["Media Type", "media_type", "media", "attachment"]
             )
 
             if not has_media:

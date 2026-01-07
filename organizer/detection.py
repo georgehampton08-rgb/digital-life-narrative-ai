@@ -28,16 +28,46 @@ if TYPE_CHECKING:
 # =============================================================================
 
 # Common media file extensions for fallback detection
-MEDIA_EXTENSIONS = frozenset({
-    # Images
-    ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".heic", ".heif",
-    ".tiff", ".tif", ".raw", ".cr2", ".nef", ".arw", ".dng",
-    # Videos
-    ".mp4", ".mov", ".avi", ".mkv", ".wmv", ".flv", ".webm", ".m4v",
-    ".3gp", ".mpeg", ".mpg",
-    # Audio
-    ".mp3", ".wav", ".aac", ".m4a", ".flac", ".ogg", ".wma",
-})
+MEDIA_EXTENSIONS = frozenset(
+    {
+        # Images
+        ".jpg",
+        ".jpeg",
+        ".png",
+        ".gif",
+        ".bmp",
+        ".webp",
+        ".heic",
+        ".heif",
+        ".tiff",
+        ".tif",
+        ".raw",
+        ".cr2",
+        ".nef",
+        ".arw",
+        ".dng",
+        # Videos
+        ".mp4",
+        ".mov",
+        ".avi",
+        ".mkv",
+        ".wmv",
+        ".flv",
+        ".webm",
+        ".m4v",
+        ".3gp",
+        ".mpeg",
+        ".mpg",
+        # Audio
+        ".mp3",
+        ".wav",
+        ".aac",
+        ".m4a",
+        ".flac",
+        ".ogg",
+        ".wma",
+    }
+)
 
 
 # =============================================================================

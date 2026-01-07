@@ -200,14 +200,9 @@ class LogContext:
         self.elapsed = time.perf_counter() - self._start_time
 
         if exc_type is not None:
-            self.logger.error(
-                f"{self.message} failed after {self.elapsed:.2f}s: {exc_val}"
-            )
+            self.logger.error(f"{self.message} failed after {self.elapsed:.2f}s: {exc_val}")
         else:
-            self.logger.log(
-                self.level,
-                f"{self.message} completed in {self.elapsed:.2f}s"
-            )
+            self.logger.log(self.level, f"{self.message} completed in {self.elapsed:.2f}s")
 
 
 @contextmanager

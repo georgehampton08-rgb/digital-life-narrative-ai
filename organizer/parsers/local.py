@@ -41,27 +41,69 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 
 # Supported media extensions
-IMAGE_EXTENSIONS = frozenset({
-    ".jpg", ".jpeg", ".png", ".gif", ".webp", ".heic", ".heif",
-    ".bmp", ".tiff", ".tif",
-    # RAW formats
-    ".cr2", ".nef", ".arw", ".dng", ".orf", ".rw2", ".raw",
-})
+IMAGE_EXTENSIONS = frozenset(
+    {
+        ".jpg",
+        ".jpeg",
+        ".png",
+        ".gif",
+        ".webp",
+        ".heic",
+        ".heif",
+        ".bmp",
+        ".tiff",
+        ".tif",
+        # RAW formats
+        ".cr2",
+        ".nef",
+        ".arw",
+        ".dng",
+        ".orf",
+        ".rw2",
+        ".raw",
+    }
+)
 
-VIDEO_EXTENSIONS = frozenset({
-    ".mp4", ".mov", ".avi", ".mkv", ".webm", ".m4v", ".3gp",
-    ".wmv", ".flv", ".mpeg", ".mpg",
-})
+VIDEO_EXTENSIONS = frozenset(
+    {
+        ".mp4",
+        ".mov",
+        ".avi",
+        ".mkv",
+        ".webm",
+        ".m4v",
+        ".3gp",
+        ".wmv",
+        ".flv",
+        ".mpeg",
+        ".mpg",
+    }
+)
 
-AUDIO_EXTENSIONS = frozenset({
-    ".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg", ".wma",
-})
+AUDIO_EXTENSIONS = frozenset(
+    {
+        ".mp3",
+        ".wav",
+        ".m4a",
+        ".aac",
+        ".flac",
+        ".ogg",
+        ".wma",
+    }
+)
 
 # Files to skip
-SKIP_FILES = frozenset({
-    ".ds_store", "thumbs.db", "desktop.ini", ".picasa.ini",
-    "albumdata.xml", ".nomedia", ".thumbnails",
-})
+SKIP_FILES = frozenset(
+    {
+        ".ds_store",
+        "thumbs.db",
+        "desktop.ini",
+        ".picasa.ini",
+        "albumdata.xml",
+        ".nomedia",
+        ".thumbnails",
+    }
+)
 
 SKIP_PREFIXES = (".", "~", "__")
 
@@ -70,7 +112,10 @@ FILENAME_DATE_PATTERNS = [
     # Android/Pixel: IMG_20190615_143022.jpg, VID_20190615_143022.mp4
     (re.compile(r"(?:IMG|VID|PXL)_(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})"), True),
     # Screenshot patterns
-    (re.compile(r"Screenshot[_\s-]?(\d{4})-?(\d{2})-?(\d{2})[_\s-]?(\d{2})-?(\d{2})-?(\d{2})"), True),
+    (
+        re.compile(r"Screenshot[_\s-]?(\d{4})-?(\d{2})-?(\d{2})[_\s-]?(\d{2})-?(\d{2})-?(\d{2})"),
+        True,
+    ),
     # ISO format: 2019-06-15_14-30-22.jpg or 2019-06-15 14.30.22.jpg
     (re.compile(r"(\d{4})-(\d{2})-(\d{2})[_\s\.](\d{2})[\.\-](\d{2})[\.\-](\d{2})"), True),
     # WhatsApp: IMG-20190615-WA0001.jpg
@@ -85,12 +130,24 @@ YEAR_PATTERN = re.compile(r"^(19|20)\d{2}$")
 YEAR_MONTH_PATTERN = re.compile(r"^(19|20)\d{2}[_\-](0[1-9]|1[0-2])$")
 LOCATION_PATTERNS = [
     re.compile(r"(.+?)\s+(19|20)\d{2}$"),  # "Paris 2019"
-    re.compile(r"(19|20)\d{2}\s+(.+)$"),    # "2019 Paris"
+    re.compile(r"(19|20)\d{2}\s+(.+)$"),  # "2019 Paris"
 ]
-EVENT_KEYWORDS = frozenset({
-    "wedding", "birthday", "vacation", "trip", "holiday", "christmas",
-    "easter", "thanksgiving", "graduation", "party", "concert", "festival",
-})
+EVENT_KEYWORDS = frozenset(
+    {
+        "wedding",
+        "birthday",
+        "vacation",
+        "trip",
+        "holiday",
+        "christmas",
+        "easter",
+        "thanksgiving",
+        "graduation",
+        "party",
+        "concert",
+        "festival",
+    }
+)
 
 
 # =============================================================================
@@ -319,9 +376,7 @@ class LocalPhotosParser(BaseParser):
         exif_data = self._extract_full_exif(file_path)
 
         # Get timestamp from EXIF or fallback
-        timestamp, timestamp_confidence = self._get_image_timestamp(
-            file_path, exif_data
-        )
+        timestamp, timestamp_confidence = self._get_image_timestamp(file_path, exif_data)
 
         # Get location from EXIF GPS
         location, location_confidence = self._get_image_location(exif_data)
@@ -672,9 +727,16 @@ class LocalPhotosParser(BaseParser):
             Summarized EXIF with key fields only.
         """
         keep_fields = {
-            "DateTimeOriginal", "DateTime", "Make", "Model",
-            "ExposureTime", "FNumber", "ISOSpeedRatings",
-            "FocalLength", "ImageWidth", "ImageHeight",
+            "DateTimeOriginal",
+            "DateTime",
+            "Make",
+            "Model",
+            "ExposureTime",
+            "FNumber",
+            "ISOSpeedRatings",
+            "FocalLength",
+            "ImageWidth",
+            "ImageHeight",
         }
 
         summary = {}
@@ -834,7 +896,12 @@ class LocalPhotosParser(BaseParser):
                             continue
 
                         return datetime(
-                            year, month, day, hour, minute, second,
+                            year,
+                            month,
+                            day,
+                            hour,
+                            minute,
+                            second,
                             tzinfo=timezone.utc,
                         )
                     else:
@@ -933,16 +1000,12 @@ class LocalPhotosParser(BaseParser):
             metadata["file_size_mb"] = round(stat.st_size / (1024 * 1024), 2)
 
             # File times
-            metadata["mtime"] = datetime.fromtimestamp(
-                stat.st_mtime, tz=timezone.utc
-            ).isoformat()
+            metadata["mtime"] = datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat()
 
             # Try to get creation time (platform-dependent)
             try:
                 ctime = stat.st_birthtime  # macOS
-                metadata["ctime"] = datetime.fromtimestamp(
-                    ctime, tz=timezone.utc
-                ).isoformat()
+                metadata["ctime"] = datetime.fromtimestamp(ctime, tz=timezone.utc).isoformat()
             except AttributeError:
                 # Windows/Linux use st_ctime differently
                 metadata["ctime"] = datetime.fromtimestamp(

@@ -232,9 +232,7 @@ class AppConfig(BaseModel):
                 },
                 "key_storage_backend": self.key_storage_backend.value,
                 "encrypted_key_file_path": (
-                    str(self.encrypted_key_file_path)
-                    if self.encrypted_key_file_path
-                    else None
+                    str(self.encrypted_key_file_path) if self.encrypted_key_file_path else None
                 ),
                 "output_format": self.output_format,
             }
@@ -293,9 +291,7 @@ class APIKeyManager:
         self.encrypted_file_path = encrypted_file_path
 
         if backend == KeyStorageBackend.ENCRYPTED_FILE and not encrypted_file_path:
-            raise ConfigurationError(
-                "encrypted_file_path required for ENCRYPTED_FILE backend"
-            )
+            raise ConfigurationError("encrypted_file_path required for ENCRYPTED_FILE backend")
 
     def _validate_key_format(self, key: str) -> None:
         """Validate API key format without exposing the key.
@@ -313,9 +309,7 @@ class APIKeyManager:
                 f"API key too short (minimum {self.MIN_KEY_LENGTH} characters)"
             )
         if len(key) > self.MAX_KEY_LENGTH:
-            raise ConfigurationError(
-                f"API key too long (maximum {self.MAX_KEY_LENGTH} characters)"
-            )
+            raise ConfigurationError(f"API key too long (maximum {self.MAX_KEY_LENGTH} characters)")
         if not key.strip() == key:
             raise ConfigurationError("API key should not have leading/trailing whitespace")
 
@@ -424,9 +418,7 @@ class APIKeyManager:
                 decrypted = fernet.decrypt(encrypted)
                 return decrypted.decode("utf-8")
             except InvalidToken:
-                raise ConfigurationError(
-                    "Failed to decrypt API key - encryption key mismatch"
-                )
+                raise ConfigurationError("Failed to decrypt API key - encryption key mismatch")
             except Exception as e:
                 raise ConfigurationError(f"Failed to retrieve encrypted key: {e}")
 
@@ -553,8 +545,6 @@ def get_api_key() -> str:
 
     key = manager.retrieve_key()
     if not key:
-        raise APIKeyNotFoundError(
-            "No API key configured. Run 'organizer configure' to set up."
-        )
+        raise APIKeyNotFoundError("No API key configured. Run 'organizer configure' to set up.")
 
     return key

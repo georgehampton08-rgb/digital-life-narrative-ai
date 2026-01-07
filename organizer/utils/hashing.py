@@ -159,11 +159,7 @@ def find_duplicates(items: list["MediaItem"]) -> dict[str, list["MediaItem"]]:
                 logger.debug(f"Could not hash {item.file_path}: {e}")
 
     # Return only duplicates (2+ items with same hash)
-    return {
-        hash_val: items_list
-        for hash_val, items_list in by_hash.items()
-        if len(items_list) > 1
-    }
+    return {hash_val: items_list for hash_val, items_list in by_hash.items() if len(items_list) > 1}
 
 
 def find_duplicates_quick(items: list["MediaItem"]) -> dict[str, list["MediaItem"]]:
@@ -188,11 +184,7 @@ def find_duplicates_quick(items: list["MediaItem"]) -> dict[str, list["MediaItem
             except Exception as e:
                 logger.debug(f"Could not quick-hash {item.file_path}: {e}")
 
-    return {
-        hash_val: items_list
-        for hash_val, items_list in by_hash.items()
-        if len(items_list) > 1
-    }
+    return {hash_val: items_list for hash_val, items_list in by_hash.items() if len(items_list) > 1}
 
 
 def deduplicate_items(items: list["MediaItem"]) -> tuple[list["MediaItem"], int]:

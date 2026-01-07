@@ -42,26 +42,46 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 
 # Media file extensions supported by Google Photos
-GOOGLE_PHOTOS_MEDIA_EXTENSIONS = frozenset({
-    # Images
-    ".jpg", ".jpeg", ".png", ".gif", ".webp", ".heic", ".heif",
-    ".bmp", ".tiff", ".tif", ".raw", ".dng",
-    # Videos
-    ".mp4", ".mov", ".avi", ".mkv", ".webm", ".m4v", ".3gp",
-    # Live photos motion component
-    ".mp",
-})
+GOOGLE_PHOTOS_MEDIA_EXTENSIONS = frozenset(
+    {
+        # Images
+        ".jpg",
+        ".jpeg",
+        ".png",
+        ".gif",
+        ".webp",
+        ".heic",
+        ".heif",
+        ".bmp",
+        ".tiff",
+        ".tif",
+        ".raw",
+        ".dng",
+        # Videos
+        ".mp4",
+        ".mov",
+        ".avi",
+        ".mkv",
+        ".webm",
+        ".m4v",
+        ".3gp",
+        # Live photos motion component
+        ".mp",
+    }
+)
 
 # Files to skip during parsing
-SKIP_FILES = frozenset({
-    "print-subscriptions.json",
-    "shared_album_comments.json",
-    "user-generated-memory-titles.json",
-    "metadata.json",
-    ".picasa.ini",
-    "Thumbs.db",
-    ".DS_Store",
-})
+SKIP_FILES = frozenset(
+    {
+        "print-subscriptions.json",
+        "shared_album_comments.json",
+        "user-generated-memory-titles.json",
+        "metadata.json",
+        ".picasa.ini",
+        "Thumbs.db",
+        ".DS_Store",
+    }
+)
 
 # Folders that indicate album context
 ALBUM_FOLDER_PATTERNS = [
@@ -102,8 +122,18 @@ class GooglePhotosParser(BaseParser):
 
     platform = SourcePlatform.GOOGLE_PHOTOS
     supported_extensions = {
-        ".jpg", ".jpeg", ".png", ".gif", ".mp4", ".mov",
-        ".heic", ".webp", ".json", ".heif", ".avi", ".mkv",
+        ".jpg",
+        ".jpeg",
+        ".png",
+        ".gif",
+        ".mp4",
+        ".mov",
+        ".heic",
+        ".webp",
+        ".json",
+        ".heif",
+        ".avi",
+        ".mkv",
     }
 
     def __init__(self) -> None:
@@ -309,14 +339,10 @@ class GooglePhotosParser(BaseParser):
         media_type = self._determine_media_type(media_path)
 
         # Extract timestamp
-        timestamp, timestamp_confidence = self._extract_timestamp(
-            media_path, sidecar_data
-        )
+        timestamp, timestamp_confidence = self._extract_timestamp(media_path, sidecar_data)
 
         # Extract location
-        location, location_confidence = self._extract_location(
-            media_path, sidecar_data
-        )
+        location, location_confidence = self._extract_location(media_path, sidecar_data)
 
         # Extract people
         people = self._extract_people(sidecar_data)
@@ -697,7 +723,18 @@ class GooglePhotosParser(BaseParser):
         """
         ext = media_path.suffix.lower()
 
-        if ext in {".jpg", ".jpeg", ".png", ".gif", ".webp", ".heic", ".heif", ".bmp", ".tiff", ".tif"}:
+        if ext in {
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".gif",
+            ".webp",
+            ".heic",
+            ".heif",
+            ".bmp",
+            ".tiff",
+            ".tif",
+        }:
             return MediaType.PHOTO
         elif ext in {".mp4", ".mov", ".avi", ".mkv", ".webm", ".m4v", ".3gp"}:
             return MediaType.VIDEO

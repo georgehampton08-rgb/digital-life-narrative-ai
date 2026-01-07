@@ -1,6 +1,6 @@
 """Comprehensive tests for the core data models of Digital Life Narrative AI.
 
-This module verifies Pydantic validation, privacy helpers, serialization, 
+This module verifies Pydantic validation, privacy helpers, serialization,
 and edge case handling for Memory, GeoLocation, LifeChapter, and other core models.
 """
 
@@ -12,36 +12,32 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
+from src.ai.life_analyzer import LifeChapter, LifeStoryReport
+
 # Core Models
 from src.core.memory import (
-    Memory, 
-    MediaType, 
-    SourcePlatform, 
-    ConfidenceLevel, 
-    Location, 
-    GeoPoint, 
-    PersonTag
-)
-from src.core.timeline import DateRange
-from src.ai.life_analyzer import (
-    LifeChapter, 
-    LifeStoryReport, 
-    PlatformBehaviorInsight, 
-    DataGap
+    ConfidenceLevel,
+    GeoPoint,
+    Location,
+    MediaType,
+    Memory,
+    PersonTag,
+    SourcePlatform,
 )
 from src.core.safety import (
-    SafetySettings, 
-    SafetyFlag, 
-    MemorySafetyState, 
-    SafetyCategory, 
+    DetectionMethod,
+    MemorySafetyState,
     SafetyAction,
-    SensitivityLevel,
-    DetectionMethod
+    SafetyCategory,
+    SafetyFlag,
+    SafetySettings,
 )
+from src.core.timeline import DateRange
 
 # =============================================================================
 # Memory Model Tests
 # =============================================================================
+
 
 class TestMemory:
     """Tests for the universal Memory object."""
@@ -51,7 +47,7 @@ class TestMemory:
         id_val = str(uuid.uuid4())
         dt = datetime(2022, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
         loc = Location(place_name="San Francisco", country="USA")
-        
+
         memory = Memory(
             id=id_val,
             source_platform=SourcePlatform.GOOGLE_PHOTOS,
@@ -67,9 +63,9 @@ class TestMemory:
             duration_seconds=None,
             content_hash="hash123",
             metadata_hash="meta456",
-            created_at_confidence=ConfidenceLevel.HIGH
+            created_at_confidence=ConfidenceLevel.HIGH,
         )
-        
+
         assert memory.id == id_val
         assert memory.source_platform == SourcePlatform.GOOGLE_PHOTOS
         assert memory.media_type == MediaType.PHOTO
@@ -82,11 +78,8 @@ class TestMemory:
 
     def test_memory_creation_minimal_fields(self) -> None:
         """Create Memory with only required fields and assert defaults."""
-        memory = Memory(
-            source_platform=SourcePlatform.LOCAL,
-            media_type=MediaType.PHOTO
-        )
-        
+        memory = Memory(source_platform=SourcePlatform.LOCAL, media_type=MediaType.PHOTO)
+
         assert memory.id is not None
         assert isinstance(memory.id, str)
         assert memory.created_at is None
@@ -98,7 +91,7 @@ class TestMemory:
         """Assert id is generated if not provided and is unique."""
         m1 = Memory(source_platform=SourcePlatform.LOCAL, media_type=MediaType.PHOTO)
         m2 = Memory(source_platform=SourcePlatform.LOCAL, media_type=MediaType.PHOTO)
-        
+
         assert m1.id is not None
         assert m2.id is not None
         assert m1.id != m2.id
@@ -109,9 +102,7 @@ class TestMemory:
         """Test valid timezone-aware datetime storage."""
         dt = datetime(2021, 5, 20, 15, 30, 0, tzinfo=timezone.utc)
         memory = Memory(
-            source_platform=SourcePlatform.LOCAL,
-            media_type=MediaType.PHOTO,
-            created_at=dt
+            source_platform=SourcePlatform.LOCAL, media_type=MediaType.PHOTO, created_at=dt
         )
         assert memory.created_at == dt
 
@@ -119,9 +110,7 @@ class TestMemory:
         """Naive datetimes should be converted to UTC or treated as UTC."""
         naive_dt = datetime(2021, 5, 20, 15, 30, 0)
         memory = Memory(
-            source_platform=SourcePlatform.LOCAL,
-            media_type=MediaType.PHOTO,
-            created_at=naive_dt
+            source_platform=SourcePlatform.LOCAL, media_type=MediaType.PHOTO, created_at=naive_dt
         )
         # The model have a validator or logic to ensure awareness
         assert memory.created_at.tzinfo == timezone.utc
@@ -134,7 +123,7 @@ class TestMemory:
             created_at=None,
             caption=None,
             location=None,
-            width=None
+            width=None,
         )
         assert memory.caption is None
         assert memory.location is None
@@ -146,14 +135,12 @@ class TestMemory:
         """Ensure source_path is NEVER leaked in AI payload."""
         path = "/home/user/private/vacation.jpg"
         memory = Memory(
-            source_platform=SourcePlatform.LOCAL,
-            media_type=MediaType.PHOTO,
-            source_path=path
+            source_platform=SourcePlatform.LOCAL, media_type=MediaType.PHOTO, source_path=path
         )
-        
+
         payload = memory.to_ai_payload(privacy_level="detailed")
         payload_str = json.dumps(payload)
-        
+
         assert "source_path" not in payload
         assert "home" not in payload_str
         assert "user" not in payload_str
@@ -163,16 +150,14 @@ class TestMemory:
         """Assert caption is truncated in AI payload based on privacy level."""
         long_caption = "A" * 500
         memory = Memory(
-            source_platform=SourcePlatform.LOCAL,
-            media_type=MediaType.PHOTO,
-            caption=long_caption
+            source_platform=SourcePlatform.LOCAL, media_type=MediaType.PHOTO, caption=long_caption
         )
-        
+
         # In detailed mode it should be truncated (usually 100 chars)
         payload = memory.to_ai_payload(privacy_level="detailed")
         assert len(payload["caption"]) < 500
         assert payload["caption"].endswith("...")
-        
+
         # In standard mode, it should just be a boolean has_caption
         payload_std = memory.to_ai_payload(privacy_level="standard")
         assert "caption" not in payload_std
@@ -183,9 +168,9 @@ class TestMemory:
         memory = Memory(
             source_platform=SourcePlatform.LOCAL,
             media_type=MediaType.PHOTO,
-            people=[PersonTag(name="John Doe"), PersonTag(name="Jane Smith")]
+            people=[PersonTag(name="John Doe"), PersonTag(name="Jane Smith")],
         )
-        
+
         payload = memory.to_ai_payload(privacy_level="detailed")
         assert "people" in payload
         assert "John Doe" not in str(payload["people"])
@@ -199,7 +184,7 @@ class TestMemory:
             media_type=MediaType.PHOTO,
             created_at=datetime.now(timezone.utc),
             location=Location(place_name="London", country="UK"),
-            people=[PersonTag(name="Bob")]
+            people=[PersonTag(name="Bob")],
         )
         payload = memory.to_ai_payload(privacy_level="detailed")
         # This will raise if not serializable
@@ -210,10 +195,10 @@ class TestMemory:
         """Verify content hashing from real file."""
         test_file = tmp_path / "test.txt"
         test_file.write_text("hello world")
-        
+
         memory = Memory(source_platform=SourcePlatform.LOCAL, media_type=MediaType.PHOTO)
         hash_val = memory.compute_content_hash(test_file)
-        
+
         assert hash_val is not None
         assert isinstance(hash_val, str)
         assert len(hash_val) == 32  # MD5 length
@@ -223,20 +208,28 @@ class TestMemory:
         """Within 30 seconds tolerance."""
         dt1 = datetime(2020, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
         dt2 = dt1 + timedelta(seconds=30)
-        
-        m1 = Memory(source_platform=SourcePlatform.LOCAL, media_type=MediaType.PHOTO, created_at=dt1)
-        m2 = Memory(source_platform=SourcePlatform.SNAPCHAT, media_type=MediaType.PHOTO, created_at=dt2)
-        
+
+        m1 = Memory(
+            source_platform=SourcePlatform.LOCAL, media_type=MediaType.PHOTO, created_at=dt1
+        )
+        m2 = Memory(
+            source_platform=SourcePlatform.SNAPCHAT, media_type=MediaType.PHOTO, created_at=dt2
+        )
+
         assert m1.is_same_moment(m2, tolerance_seconds=60) is True
 
     def test_memory_is_same_moment_outside_tolerance(self) -> None:
         """Outside 1 minute tolerance."""
         dt1 = datetime(2020, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
         dt2 = dt1 + timedelta(minutes=5)
-        
-        m1 = Memory(source_platform=SourcePlatform.LOCAL, media_type=MediaType.PHOTO, created_at=dt1)
-        m2 = Memory(source_platform=SourcePlatform.SNAPCHAT, media_type=MediaType.PHOTO, created_at=dt2)
-        
+
+        m1 = Memory(
+            source_platform=SourcePlatform.LOCAL, media_type=MediaType.PHOTO, created_at=dt1
+        )
+        m2 = Memory(
+            source_platform=SourcePlatform.SNAPCHAT, media_type=MediaType.PHOTO, created_at=dt2
+        )
+
         assert m1.is_same_moment(m2, tolerance_seconds=60) is False
 
     def test_memory_merge_with_higher_confidence_wins(self) -> None:
@@ -245,15 +238,15 @@ class TestMemory:
             source_platform=SourcePlatform.LOCAL,
             media_type=MediaType.PHOTO,
             location=Location(place_name="Unknown City", confidence=ConfidenceLevel.LOW),
-            created_at_confidence=ConfidenceLevel.LOW
+            created_at_confidence=ConfidenceLevel.LOW,
         )
         m2 = Memory(
             source_platform=SourcePlatform.LOCAL,
             media_type=MediaType.PHOTO,
             location=Location(place_name="San Francisco", confidence=ConfidenceLevel.HIGH),
-            created_at_confidence=ConfidenceLevel.HIGH
+            created_at_confidence=ConfidenceLevel.HIGH,
         )
-        
+
         merged = m1.merge_with(m2)
         assert merged.location.place_name == "San Francisco"
         assert merged.created_at_confidence == ConfidenceLevel.HIGH
@@ -262,7 +255,7 @@ class TestMemory:
         """Empty strings should be normalized to None."""
         m1 = Memory(source_platform=SourcePlatform.LOCAL, media_type=MediaType.PHOTO, caption="")
         m2 = Memory(source_platform=SourcePlatform.LOCAL, media_type=MediaType.PHOTO, caption=None)
-        
+
         assert m1.caption is None
         assert m2.caption is None
 
@@ -270,17 +263,17 @@ class TestMemory:
         """Unicode characters in caption work correctly."""
         caption = "Beautiful day in 東京 🇯🇵"
         memory = Memory(
-            source_platform=SourcePlatform.LOCAL,
-            media_type=MediaType.PHOTO,
-            caption=caption
+            source_platform=SourcePlatform.LOCAL, media_type=MediaType.PHOTO, caption=caption
         )
         assert memory.caption == caption
         data = memory.model_dump_json()
         assert "東京" in data
 
+
 # =============================================================================
 # GeoLocation Tests
 # =============================================================================
+
 
 class TestGeoLocation:
     """Tests for GeoPoint and Location models."""
@@ -315,10 +308,7 @@ class TestGeoLocation:
     def test_location_to_display_string(self) -> None:
         """Test hierarchical display string generation."""
         loc = Location(
-            place_name="Central Park",
-            locality="Manhattan",
-            region="New York",
-            country="USA"
+            place_name="Central Park", locality="Manhattan", region="New York", country="USA"
         )
         display = loc.to_display_string()
         assert "Central Park" in display
@@ -329,13 +319,15 @@ class TestGeoLocation:
         """Test is_empty detection."""
         loc_empty = Location()
         assert loc_empty.is_empty() is True
-        
+
         loc_filled = Location(place_name="Somewhere")
         assert loc_filled.is_empty() is False
+
 
 # =============================================================================
 # LifeChapter Tests
 # =============================================================================
+
 
 class TestLifeChapter:
     """Tests for LifeChapter model and logic."""
@@ -347,7 +339,7 @@ class TestLifeChapter:
             start_date=date(2020, 1, 1),
             end_date=date(2020, 6, 30),
             themes=["travel", "discovery"],
-            narrative="A small narrative."
+            narrative="A small narrative.",
         )
         assert chapter.title == "The Adventure"
         assert chapter.duration_days == 181  # Jan 1 to Jun 30
@@ -357,28 +349,20 @@ class TestLifeChapter:
         # Check if DateRange or LifeChapter enforces end > start
         # If not enforced at init, this test might need adjustment
         chapter = LifeChapter(
-            title="Invalid",
-            start_date=date(2021, 1, 1),
-            end_date=date(2020, 1, 1)
+            title="Invalid", start_date=date(2021, 1, 1), end_date=date(2020, 1, 1)
         )
         assert chapter.start_date > chapter.end_date  # As confirmed in existing tests
 
     def test_chapter_confidence_bounds(self) -> None:
         """Confidence must be between 0.0 and 1.0."""
         chapter = LifeChapter(
-            title="Test",
-            start_date=date(2020, 1, 1),
-            end_date=date(2020, 1, 2),
-            confidence=0.8
+            title="Test", start_date=date(2020, 1, 1), end_date=date(2020, 1, 2), confidence=0.8
         )
         assert chapter.confidence == 0.8
-        
+
         with pytest.raises(ValidationError):
             LifeChapter(
-                title="Bad",
-                start_date=date(2020, 1, 1),
-                end_date=date(2020, 1, 2),
-                confidence=1.5
+                title="Bad", start_date=date(2020, 1, 1), end_date=date(2020, 1, 2), confidence=1.5
             )
 
     def test_chapter_overlaps_with_true(self) -> None:
@@ -396,20 +380,20 @@ class TestLifeChapter:
     def test_chapter_merge_with(self) -> None:
         """Merging two chapters."""
         c1 = LifeChapter(
-            title="Phase 1", 
-            start_date=date(2020, 1, 1), 
+            title="Phase 1",
+            start_date=date(2020, 1, 1),
             end_date=date(2020, 1, 31),
             themes=["A"],
-            memory_ids=["m1"]
+            memory_ids=["m1"],
         )
         c2 = LifeChapter(
-            title="Phase 2", 
-            start_date=date(2020, 2, 1), 
+            title="Phase 2",
+            start_date=date(2020, 2, 1),
             end_date=date(2020, 2, 28),
             themes=["B"],
-            memory_ids=["m2"]
+            memory_ids=["m2"],
         )
-        
+
         merged = c1.merge_with(c2)
         assert merged.start_date == date(2020, 1, 1)
         assert merged.end_date == date(2020, 2, 28)
@@ -424,16 +408,18 @@ class TestLifeChapter:
             title="Chapter 1",
             start_date=date(2019, 1, 1),
             end_date=date(2019, 1, 5),
-            memory_count=10
+            memory_count=10,
         )
         entry = chapter.to_timeline_entry()
         assert entry["title"] == "Chapter 1"
         assert entry["start"] == "2019-01-01"
         assert entry["memory_count"] == 10
 
+
 # =============================================================================
 # DateRange Tests
 # =============================================================================
+
 
 class TestDateRange:
     """Tests for DateRange model, usually part of timeline aggregation."""
@@ -457,9 +443,11 @@ class TestDateRange:
         assert merged.start == date(2020, 1, 1)
         assert merged.end == date(2020, 1, 20)
 
+
 # =============================================================================
 # LifeStoryReport Tests
 # =============================================================================
+
 
 class TestLifeStoryReport:
     """Tests for the final report model."""
@@ -489,9 +477,11 @@ class TestLifeStoryReport:
         assert "chapters" in data
         assert "executive_summary" in data
 
+
 # =============================================================================
 # Safety Model Tests
 # =============================================================================
+
 
 class TestSafetyModels:
     """Tests for content safety and filtering models."""
@@ -502,7 +492,7 @@ class TestSafetyModels:
             category=SafetyCategory.NUDITY,
             confidence=0.8,
             detection_method=DetectionMethod.CAPTION_ANALYSIS,
-            source="test"
+            source="test",
         )
         assert flag.category == SafetyCategory.NUDITY
         assert flag.confidence == 0.8
@@ -516,12 +506,18 @@ class TestSafetyModels:
     def test_safety_settings_get_action_for_category(self) -> None:
         """Specific category actions."""
         settings = SafetySettings(nudity_action=SafetyAction.HIDE_FROM_REPORT)
-        assert settings.get_action_for_category(SafetyCategory.NUDITY) == SafetyAction.HIDE_FROM_REPORT
+        assert (
+            settings.get_action_for_category(SafetyCategory.NUDITY) == SafetyAction.HIDE_FROM_REPORT
+        )
 
     def test_memory_safety_state_add_flag(self) -> None:
         """Adding flags to a memory's safety state."""
         state = MemorySafetyState(memory_id="m1")
-        flag = SafetyFlag(category=SafetyCategory.VIOLENCE, detection_method=DetectionMethod.CAPTION_ANALYSIS, source="test")
+        flag = SafetyFlag(
+            category=SafetyCategory.VIOLENCE,
+            detection_method=DetectionMethod.CAPTION_ANALYSIS,
+            source="test",
+        )
         state.add_flag(flag)
         assert len(state.flags) == 1
         assert state.flags[0].category == SafetyCategory.VIOLENCE
@@ -529,20 +525,33 @@ class TestSafetyModels:
     def test_resolve_action_for_flags_strictest_wins(self) -> None:
         """Resolution logic ensures the most restrictive action."""
         settings = SafetySettings(
-            nudity_action=SafetyAction.HIDE_FROM_REPORT,
-            violence_action=SafetyAction.FLAG_ONLY
+            nudity_action=SafetyAction.HIDE_FROM_REPORT, violence_action=SafetyAction.FLAG_ONLY
         )
         state = MemorySafetyState(memory_id="m1")
-        state.add_flag(SafetyFlag(category=SafetyCategory.NUDITY, detection_method=DetectionMethod.CAPTION_ANALYSIS, source="test"))
-        state.add_flag(SafetyFlag(category=SafetyCategory.VIOLENCE, detection_method=DetectionMethod.CAPTION_ANALYSIS, source="test"))
-        
+        state.add_flag(
+            SafetyFlag(
+                category=SafetyCategory.NUDITY,
+                detection_method=DetectionMethod.CAPTION_ANALYSIS,
+                source="test",
+            )
+        )
+        state.add_flag(
+            SafetyFlag(
+                category=SafetyCategory.VIOLENCE,
+                detection_method=DetectionMethod.CAPTION_ANALYSIS,
+                source="test",
+            )
+        )
+
         state.resolve_action(settings)
         # HIDE is stricter than FLAG
         assert state.resolved_action == SafetyAction.HIDE_FROM_REPORT
 
+
 # =============================================================================
 # Enum Tests
 # =============================================================================
+
 
 class TestEnums:
     """Basic checks for enum contents."""
@@ -564,25 +573,30 @@ class TestEnums:
         # but the request asks to test ordering if applicable.
         # Based on src/core/memory.py docstring: VERIFIED > HIGH > MEDIUM > LOW > INFERRED
         levels = [
-            ConfidenceLevel.VERIFIED, 
-            ConfidenceLevel.HIGH, 
-            ConfidenceLevel.MEDIUM, 
-            ConfidenceLevel.LOW, 
-            ConfidenceLevel.INFERRED
+            ConfidenceLevel.VERIFIED,
+            ConfidenceLevel.HIGH,
+            ConfidenceLevel.MEDIUM,
+            ConfidenceLevel.LOW,
+            ConfidenceLevel.INFERRED,
         ]
         assert levels[0] == ConfidenceLevel.VERIFIED
+
 
 # =============================================================================
 # Parametrized & Special Cases
 # =============================================================================
 
-@pytest.mark.parametrize("lat,lon,expected_valid", [
-    (0, 0, True),
-    (90, 180, True),
-    (-90, -180, True),
-    (91, 0, False),
-    (0, 181, False),
-])
+
+@pytest.mark.parametrize(
+    "lat,lon,expected_valid",
+    [
+        (0, 0, True),
+        (90, 180, True),
+        (-90, -180, True),
+        (91, 0, False),
+        (0, 181, False),
+    ],
+)
 def test_geopoint_validation(lat: float, lon: float, expected_valid: bool) -> None:
     """Parametrized coordinate validation."""
     if expected_valid:
@@ -592,13 +606,14 @@ def test_geopoint_validation(lat: float, lon: float, expected_valid: bool) -> No
         with pytest.raises(ValidationError):
             GeoPoint(latitude=lat, longitude=lon)
 
+
 def test_chapter_single_day_range() -> None:
     """Start and end on same day."""
     d = date(2020, 1, 1)
     chapter = LifeChapter(title="One Day", start_date=d, end_date=d)
     # Days property is (end - start).days + 1? Usually DateRange.days handles it.
     # Actually LifeChapter uses date_range.days which uses (end - start).days + 1
-    assert chapter.duration_days == 0 # Wait, LifeChapter uses (end - start).days
+    assert chapter.duration_days == 0  # Wait, LifeChapter uses (end - start).days
     # Let's check LifeChapter.duration_days code again.
     # 262: return (self.end_date - self.start_date).days
     assert chapter.duration_days == 0

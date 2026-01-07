@@ -15,7 +15,7 @@ Flow:
 Example:
     >>> from src.ai import LifeStoryAnalyzer
     >>> from src.core import Memory
-    >>> 
+    >>>
     >>> analyzer = LifeStoryAnalyzer()
     >>> memories = [...]  # List of Memory objects
     >>> report = analyzer.analyze(memories)
@@ -58,7 +58,7 @@ logger = logging.getLogger(__name__)
 
 class LifeChapter(BaseModel):
     """A distinct chapter or phase in someone's life.
-    
+
     Attributes:
         title: Creative chapter title (e.g., "The Chicago Years")
         start_date: Chapter start date
@@ -70,7 +70,7 @@ class LifeChapter(BaseModel):
         media_count: Number of memories in this chapter
         confidence: AI confidence in this chapter detection
     """
-    
+
     title: str
     start_date: date
     end_date: date
@@ -84,7 +84,7 @@ class LifeChapter(BaseModel):
 
 class LifeStoryReport(BaseModel):
     """Complete life story analysis report.
-    
+
     Attributes:
         generated_at: When this report was created
         ai_model: Model used for generation
@@ -96,7 +96,7 @@ class LifeStoryReport(BaseModel):
         data_quality_notes: Issues detected in data
         is_fallback: Whether this used AI or fallback mode
     """
-    
+
     generated_at: datetime
     ai_model: str
     total_memories: int
@@ -115,11 +115,13 @@ class LifeStoryReport(BaseModel):
 
 class AnalysisError(Exception):
     """Base exception for analysis errors."""
+
     pass
 
 
 class InsufficientDataError(AnalysisError):
     """Raised when there's not enough data for meaningful analysis."""
+
     pass
 
 
@@ -130,35 +132,35 @@ class InsufficientDataError(AnalysisError):
 
 class LifeStoryAnalyzer:
     """Generates life stories from Memory objects using AI.
-    
+
     This is the main product component that orchestrates:
     - Timeline construction
     - Privacy filtering
     - AI-powered chapter detection
     - Narrative generation
     - Report assembly
-    
+
     Example:
         >>> analyzer = LifeStoryAnalyzer()
         >>> memories = load_memories()
         >>> report = analyzer.analyze(memories, progress_callback=print_progress)
         >>> save_report(report)
     """
-    
+
     MIN_MEMORIES_FOR_ANALYSIS = 10
     MAX_MEMORIES_FOR_SAMPLE = 200
-    
+
     def __init__(
         self,
         client: AIClient | None = None,
         privacy_gate: PrivacyGate | None = None,
     ) -> None:
         """Initialize the analyzer.
-        
+
         Args:
             client: AI client. If None, creates one from config.
             privacy_gate: Privacy gate. If None, uses default.
-        
+
         Raises:
             AIUnavailableError: If AI is disabled and no fallback.
         """
@@ -166,63 +168,63 @@ class LifeStoryAnalyzer:
         self.client = client or get_client()
         self.privacy_gate = privacy_gate or PrivacyGate()
         self._logger = logging.getLogger(f"{__name__}.LifeStoryAnalyzer")
-    
+
     def analyze(
         self,
         memories: list[Memory],
         progress_callback: Callable[[str, float], None] | None = None,
     ) -> LifeStoryReport:
         """Analyze memories and generate a life story report.
-        
+
         Main entry point for life story generation.
-        
+
         Args:
             memories: List of Memory objects to analyze.
             progress_callback: Optional callback for progress updates.
                 Called with (stage_name, percent_complete).
-        
+
         Returns:
             Complete LifeStoryReport with chapters and narratives.
-        
+
         Raises:
             InsufficientDataError: If not enough memories for analysis.
             AIUnavailableError: If AI is required but unavailable.
-        
+
         Example:
             >>> def on_progress(stage, percent):
             ...     print(f"{stage}: {percent:.0f}%")
-            >>> 
+            >>>
             >>> report = analyzer.analyze(memories, on_progress)
         """
+
         def report_progress(stage: str, percent: float) -> None:
             if progress_callback:
                 progress_callback(stage, percent)
-        
+
         report_progress("Initializing", 0.0)
-        
+
         # Validate input
         if len(memories) < self.MIN_MEMORIES_FOR_ANALYSIS:
             raise InsufficientDataError(
-                f"Need at least {self.MIN_MEMORIES_FOR_ANALYSIS} memories, "
-                f"got {len(memories)}"
+                f"Need at least {self.MIN_MEMORIES_FOR_ANALYSIS} memories, " f"got {len(memories)}"
             )
-        
+
         # Check if AI is available
         if not self.client.is_available():
             self._logger.warning("AI unavailable, generating fallback report")
             return self._create_fallback_report(memories)
-        
+
         # Check consent
         if self.config.ai.require_consent:
             if not request_consent():
                 self._logger.info("User declined AI consent, generating fallback")
                 return self._create_fallback_report(memories)
-        
+
         # Build timeline
         report_progress("Building Timeline", 10.0)
         timeline = Timeline(memories)
         stats = timeline.compute_statistics()
-        
+
         # Detect chapters
         report_progress("Detecting Life Chapters", 30.0)
         try:
@@ -230,11 +232,11 @@ class LifeStoryAnalyzer:
         except Exception as e:
             self._logger.error(f"Chapter detection failed: {e}")
             chapters = self._create_fallback_chapters(timeline)
-        
+
         # Generate narratives
         report_progress("Writing Narratives", 60.0)
         chapters = self._generate_chapter_narratives(chapters, timeline)
-        
+
         # Generate executive summary
         report_progress("Creating Summary", 85.0)
         try:
@@ -242,16 +244,16 @@ class LifeStoryAnalyzer:
         except Exception as e:
             self._logger.error(f"Executive summary failed: {e}")
             exec_summary = self._create_fallback_summary(chapters)
-        
+
         # Assess data quality
         report_progress("Finalizing", 95.0)
         quality_notes = self._assess_data_quality(timeline)
-        
+
         # Assemble report
         date_range = None
         if stats.earliest_memory and stats.latest_memory:
             date_range = (stats.earliest_memory.date(), stats.latest_memory.date())
-        
+
         report = LifeStoryReport(
             generated_at=datetime.now(timezone.utc),
             ai_model=self.config.ai.model_name,
@@ -263,40 +265,36 @@ class LifeStoryAnalyzer:
             data_quality_notes=quality_notes,
             is_fallback=False,
         )
-        
+
         report_progress("Complete", 100.0)
-        self._logger.info(
-            f"Analysis complete: {len(chapters)} chapters, {len(memories)} memories"
-        )
-        
+        self._logger.info(f"Analysis complete: {len(chapters)} chapters, {len(memories)} memories")
+
         return report
-    
+
     def _detect_chapters(self, timeline: Timeline) -> list[LifeChapter]:
         """Detect life chapters using AI.
-        
+
         Args:
             timeline: Timeline object with memories.
-        
+
         Returns:
             List of detected LifeChapter objects.
         """
         # Sample memories for the AI prompt
-        memories = timeline.memories[:self.MAX_MEMORIES_FOR_SAMPLE]
-        
+        memories = timeline.memories[: self.MAX_MEMORIES_FOR_SAMPLE]
+
         # Prepare safe payloads through privacy gate
         safe_payloads = []
         for memory in memories:
-            payload = memory.to_ai_payload(
-                privacy_mode=self.config.privacy.mode.value
-            )
+            payload = memory.to_ai_payload(privacy_mode=self.config.privacy.mode.value)
             safe_payloads.append(payload)
-        
+
         # Build prompt
         stats = timeline.compute_statistics()
         years_covered = stats.years_covered
         min_chapters = max(2, years_covered // 5)
         max_chapters = min(10, max(5, years_covered // 2))
-        
+
         prompt = f"""Analyze this media timeline and identify {min_chapters} to {max_chapters} distinct life chapters.
 
 Timeline Summary:
@@ -332,16 +330,16 @@ Be thoughtful and respectful of the personal nature of this data."""
             prompt=prompt,
             system_instruction=system_instruction,
         )
-        
+
         if not response.parse_success:
             self._logger.warning(f"JSON parse failed: {response.parse_error}")
             raise AnalysisError(f"Failed to parse chapter response: {response.parse_error}")
-        
+
         # Convert to LifeChapter objects
         chapters_data = response.data
         if isinstance(chapters_data, dict) and "chapters" in chapters_data:
             chapters_data = chapters_data["chapters"]
-        
+
         chapters = []
         for idx, chapter_dict in enumerate(chapters_data):
             try:
@@ -353,32 +351,33 @@ Be thoughtful and respectful of the personal nature of this data."""
                     location_summary=chapter_dict.get("location_summary"),
                     confidence=chapter_dict.get("confidence", "medium"),
                 )
-                
+
                 # Count memories in this chapter
                 chapter.media_count = sum(
-                    1 for m in timeline.memories
-                    if m.created_at and
-                    chapter.start_date <= m.created_at.date() <= chapter.end_date
+                    1
+                    for m in timeline.memories
+                    if m.created_at
+                    and chapter.start_date <= m.created_at.date() <= chapter.end_date
                 )
-                
+
                 chapters.append(chapter)
             except Exception as e:
                 self._logger.warning(f"Failed to parse chapter {idx}: {e}")
                 continue
-        
+
         return sorted(chapters, key=lambda c: c.start_date)
-    
+
     def _generate_chapter_narratives(
         self,
         chapters: list[LifeChapter],
         timeline: Timeline,
     ) -> list[LifeChapter]:
         """Generate narratives for each chapter.
-        
+
         Args:
             chapters: Chapters to generate narratives for.
             timeline: Timeline with all memories.
-        
+
         Returns:
             Chapters with narratives filled in.
         """
@@ -386,25 +385,25 @@ Be thoughtful and respectful of the personal nature of this data."""
             try:
                 # Get memories for this chapter
                 chapter_memories = [
-                    m for m in timeline.memories
-                    if m.created_at and
-                    chapter.start_date <= m.created_at.date() <= chapter.end_date
+                    m
+                    for m in timeline.memories
+                    if m.created_at
+                    and chapter.start_date <= m.created_at.date() <= chapter.end_date
                 ]
-                
+
                 if not chapter_memories:
                     chapter.narrative = (
                         f"No detailed data available for this period "
                         f"({chapter.start_date} to {chapter.end_date})."
                     )
                     continue
-                
+
                 # Sample and prepare for AI
                 sample = chapter_memories[:50]
                 safe_payloads = [
-                    m.to_ai_payload(privacy_mode=self.config.privacy.mode.value)
-                    for m in sample
+                    m.to_ai_payload(privacy_mode=self.config.privacy.mode.value) for m in sample
                 ]
-                
+
                 prompt = f"""Write a narrative for this life chapter:
 
 Chapter: {chapter.title}
@@ -440,7 +439,7 @@ Focus on the human experience behind the media."""
                     prompt=prompt,
                     system_instruction=system_instruction,
                 )
-                
+
                 if response.parse_success:
                     chapter.narrative = response.data.get("narrative", "")
                     chapter.key_events = response.data.get("key_events", [])
@@ -450,40 +449,42 @@ Focus on the human experience behind the media."""
                         f"{chapter.end_date}, containing {chapter.media_count} "
                         f"media items."
                     )
-            
+
             except Exception as e:
                 self._logger.warning(f"Narrative generation failed for '{chapter.title}': {e}")
                 chapter.narrative = (
                     f"This chapter spans from {chapter.start_date} to {chapter.end_date}, "
                     f"containing {chapter.media_count} media items."
                 )
-        
+
         return chapters
-    
+
     def _generate_executive_summary(
         self,
         chapters: list[LifeChapter],
         stats: TimelineStatistics,
     ) -> str:
         """Generate executive summary of the life story.
-        
+
         Args:
             chapters: All chapters.
             stats: Timeline statistics.
-        
+
         Returns:
             Executive summary text.
         """
         # Prepare chapter summaries
         chapter_summaries = []
         for chapter in chapters:
-            chapter_summaries.append({
-                "title": chapter.title,
-                "period": f"{chapter.start_date} to {chapter.end_date}",
-                "themes": chapter.themes,
-                "media_count": chapter.media_count,
-            })
-        
+            chapter_summaries.append(
+                {
+                    "title": chapter.title,
+                    "period": f"{chapter.start_date} to {chapter.end_date}",
+                    "themes": chapter.themes,
+                    "media_count": chapter.media_count,
+                }
+            )
+
         prompt = f"""Create an executive summary of this person's life story:
 
 Life Chapters:
@@ -512,24 +513,24 @@ craft a compelling narrative that captures the essence of their journey."""
             prompt=prompt,
             system_instruction=system_instruction,
         )
-        
+
         return response.text
-    
+
     def _create_fallback_report(self, memories: list[Memory]) -> LifeStoryReport:
         """Create a basic report without AI.
-        
+
         Args:
             memories: List of memories.
-        
+
         Returns:
             LifeStoryReport in fallback mode.
         """
         timeline = Timeline(memories)
         stats = timeline.compute_statistics()
-        
+
         # Create yearly chapters
         chapters = self._create_fallback_chapters(timeline)
-        
+
         # Simple summary
         exec_summary = (
             f"This collection contains {len(memories)} memories spanning "
@@ -540,11 +541,11 @@ craft a compelling narrative that captures the essence of their journey."""
             f"narrative reconstruction, please enable AI features and configure "
             f"your Gemini API key."
         )
-        
+
         date_range = None
         if stats.earliest_memory and stats.latest_memory:
             date_range = (stats.earliest_memory.date(), stats.latest_memory.date())
-        
+
         return LifeStoryReport(
             generated_at=datetime.now(timezone.utc),
             ai_model="none (fallback mode)",
@@ -556,23 +557,23 @@ craft a compelling narrative that captures the essence of their journey."""
             data_quality_notes=self._assess_data_quality(timeline),
             is_fallback=True,
         )
-    
+
     def _create_fallback_chapters(self, timeline: Timeline) -> list[LifeChapter]:
         """Create simple yearly chapters as fallback.
-        
+
         Args:
             timeline: Timeline object.
-        
+
         Returns:
             List of yearly chapters.
         """
         chapters = []
         memories_by_year: dict[int, list[Memory]] = defaultdict(list)
-        
+
         for memory in timeline.memories:
             if memory.created_at:
                 memories_by_year[memory.created_at.year].append(memory)
-        
+
         for year in sorted(memories_by_year.keys()):
             year_memories = memories_by_year[year]
             chapter = LifeChapter(
@@ -580,24 +581,22 @@ craft a compelling narrative that captures the essence of their journey."""
                 start_date=date(year, 1, 1),
                 end_date=date(year, 12, 31),
                 themes=[],
-                narrative=(
-                    f"This chapter contains {len(year_memories)} media items from {year}."
-                ),
+                narrative=(f"This chapter contains {len(year_memories)} media items from {year}."),
                 key_events=[],
                 location_summary=None,
                 media_count=len(year_memories),
                 confidence="low",
             )
             chapters.append(chapter)
-        
+
         return chapters
-    
+
     def _create_fallback_summary(self, chapters: list[LifeChapter]) -> str:
         """Create fallback executive summary.
-        
+
         Args:
             chapters: List of chapters.
-        
+
         Returns:
             Simple summary text.
         """
@@ -606,46 +605,44 @@ craft a compelling narrative that captures the essence of their journey."""
             f"The narrative spans from {chapters[0].start_date} to "
             f"{chapters[-1].end_date}."
         )
-    
+
     def _assess_data_quality(self, timeline: Timeline) -> list[str]:
         """Assess data quality and identify issues.
-        
+
         Args:
             timeline: Timeline object.
-        
+
         Returns:
             List of quality notes/warnings.
         """
         notes = []
         stats = timeline.compute_statistics()
-        
+
         # Check for missing timestamps
         missing_timestamps = sum(1 for m in timeline.memories if not m.created_at)
         if missing_timestamps > 0:
             pct = (missing_timestamps / stats.total_memories) * 100
-            notes.append(
-                f"{missing_timestamps} memories ({pct:.1f}%) are missing timestamps"
-            )
-        
+            notes.append(f"{missing_timestamps} memories ({pct:.1f}%) are missing timestamps")
+
         # Check for gaps
         gaps = timeline.detect_gaps(min_gap_days=90)
         if gaps:
             notes.append(f"Detected {len(gaps)} significant gaps in timeline")
-        
+
         # Check for single platform dominance
         if stats.platform_counts:
             max_platform = max(stats.platform_counts.values())
             if max_platform / stats.total_memories > 0.9:
                 notes.append("Data heavily concentrated in one platform")
-        
+
         return notes
-    
+
     def _stats_to_dict(self, stats: TimelineStatistics) -> dict[str, Any]:
         """Convert TimelineStatistics to dict.
-        
+
         Args:
             stats: TimelineStatistics object.
-        
+
         Returns:
             Dictionary representation.
         """
@@ -657,33 +654,33 @@ craft a compelling narrative that captures the essence of their journey."""
             "platform_counts": dict(stats.platform_counts),
             "media_type_counts": dict(stats.media_type_counts),
         }
-    
+
     def _parse_date(self, date_str: str) -> date:
         """Parse a date string.
-        
+
         Args:
             date_str: Date string in YYYY-MM-DD format.
-        
+
         Returns:
             Parsed date.
-        
+
         Raises:
             ValueError: If date cannot be parsed.
         """
         if not date_str:
             raise ValueError("Empty date string")
-        
+
         # Try ISO format
         try:
             return datetime.fromisoformat(date_str).date()
         except ValueError:
             pass
-        
+
         # Try just year
         try:
             year = int(date_str[:4])
             return date(year, 1, 1)
         except (ValueError, IndexError):
             pass
-        
+
         raise ValueError(f"Could not parse date: {date_str}")

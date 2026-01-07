@@ -83,9 +83,11 @@ Response format:
 
 # --- Data Models ---
 
+
 @dataclass
 class FilterConfig:
     """Configuration for the content filter."""
+
     enabled: bool = True
     safety_settings: Optional[SafetySettings] = None
     batch_size: int = 50
@@ -99,6 +101,7 @@ class FilterConfig:
 @dataclass
 class FilterProgress:
     """Progress information for callbacks."""
+
     stage: str
     current: int
     total: int
@@ -113,13 +116,16 @@ class FilterProgress:
 
     def to_status_line(self) -> str:
         """Generate a human-readable status line."""
-        return (f"{self.stage}: {self.current}/{self.total} ({self.percentage():.1f}%) - "
-                f"{self.flagged_so_far} flagged")
+        return (
+            f"{self.stage}: {self.current}/{self.total} ({self.percentage():.1f}%) - "
+            f"{self.flagged_so_far} flagged"
+        )
 
 
 @dataclass
 class FilterResult:
     """Result of filtering a batch of memories."""
+
     total_processed: int
     total_flagged: int
     states: Dict[str, MemorySafetyState]
@@ -131,8 +137,10 @@ class FilterResult:
 
 # --- Exceptions ---
 
+
 class PixelAnalysisConsentError(Exception):
     """Raised when pixel analysis is attempted without disclosure acknowledgment."""
+
     pass
 
 
@@ -140,29 +148,42 @@ class PixelAnalysisConsentError(Exception):
 
 SENSITIVE_CAPTION_PATTERNS: Dict[SafetyCategory, List[str]] = {
     SafetyCategory.NUDITY: [
-        r"(?i)\bnude\b", r"(?i)\bnaked\b", r"(?i)\bnsfw\b",
-        r"(?i)\bboudoir\b", r"(?i)\btopless\b",
+        r"(?i)\bnude\b",
+        r"(?i)\bnaked\b",
+        r"(?i)\bnsfw\b",
+        r"(?i)\bboudoir\b",
+        r"(?i)\btopless\b",
     ],
     SafetyCategory.SEXUAL: [
-        r"(?i)\bsex\b", r"(?i)\bxxx\b", r"(?i)\bporn\b",
+        r"(?i)\bsex\b",
+        r"(?i)\bxxx\b",
+        r"(?i)\bporn\b",
         r"(?i)\badult\b.*\bcontent\b",
     ],
     SafetyCategory.VIOLENCE: [
-        r"(?i)\bblood\b", r"(?i)\bgore\b", r"(?i)\binjury\b",
-        r"(?i)\baccident\b", r"(?i)\bfight\b",
+        r"(?i)\bblood\b",
+        r"(?i)\bgore\b",
+        r"(?i)\binjury\b",
+        r"(?i)\baccident\b",
+        r"(?i)\bfight\b",
     ],
     SafetyCategory.SUBSTANCE: [
-        r"(?i)\bdrunk\b", r"(?i)\bhigh\b", r"(?i)\bwasted\b",
+        r"(?i)\bdrunk\b",
+        r"(?i)\bhigh\b",
+        r"(?i)\bwasted\b",
         r"(?i)\bpartying\b",
     ],
     SafetyCategory.PRIVATE: [
-        r"(?i)\bconfidential\b", r"(?i)\bprivate\b",
-        r"(?i)\bdo not share\b", r"(?i)\bpersonal\b",
+        r"(?i)\bconfidential\b",
+        r"(?i)\bprivate\b",
+        r"(?i)\bdo not share\b",
+        r"(?i)\bpersonal\b",
     ],
 }
 
 
 # --- Main Class ---
+
 
 class ContentFilter:
     """
@@ -186,12 +207,12 @@ class ContentFilter:
             ai_client: AI client for pixel analysis (creates if needed and allowed)
         """
         self._config = config or FilterConfig()
-        
+
         # Load settings from global config if not provided
         if safety_settings is None:
             app_config = get_config()
             safety_settings = SafetySettings()  # Use defaults for now
-        
+
         # Check and prompt for disclosure if pixel analysis is enabled but not acknowledged
         # This ensures users see the disclosure before any pixel analysis happens
         safety_settings = check_and_prompt_disclosure(safety_settings, interactive=True)
@@ -304,7 +325,9 @@ class ContentFilter:
             detection_methods_used=methods_used,
         )
 
-        self._logger.info(f"Filtering complete: {flagged_count}/{len(memories)} flagged in {elapsed:.2f}s")
+        self._logger.info(
+            f"Filtering complete: {flagged_count}/{len(memories)} flagged in {elapsed:.2f}s"
+        )
 
         return FilterResult(
             total_processed=len(memories),
@@ -338,8 +361,9 @@ class ContentFilter:
         all_flags.extend(self._check_folder_path(memory))
 
         # Run pixel analysis if enabled and applicable
-        if (self._safety_settings.is_pixel_analysis_allowed() and
-            self._is_pixel_analysis_applicable(memory)):
+        if self._safety_settings.is_pixel_analysis_allowed() and self._is_pixel_analysis_applicable(
+            memory
+        ):
             try:
                 all_flags.extend(self._analyze_with_vision(memory))
             except PixelAnalysisConsentError:
@@ -370,14 +394,16 @@ class ContentFilter:
         for category, patterns in SENSITIVE_FILENAME_PATTERNS.items():
             for pattern in patterns:
                 if re.search(pattern, memory.filename):
-                    flags.append(SafetyFlag(
-                        category=category,
-                        confidence=0.3,
-                        detection_method=DetectionMethod.FILENAME_HEURISTIC,
-                        severity=SensitivityLevel.MODERATE,
-                        source="filename_heuristic_v1",
-                        details=f"Filename pattern match",
-                    ))
+                    flags.append(
+                        SafetyFlag(
+                            category=category,
+                            confidence=0.3,
+                            detection_method=DetectionMethod.FILENAME_HEURISTIC,
+                            severity=SensitivityLevel.MODERATE,
+                            source="filename_heuristic_v1",
+                            details=f"Filename pattern match",
+                        )
+                    )
                     break  # One flag per category
 
         return flags
@@ -392,14 +418,16 @@ class ContentFilter:
         for category, patterns in SENSITIVE_CAPTION_PATTERNS.items():
             for pattern in patterns:
                 if re.search(pattern, caption):
-                    flags.append(SafetyFlag(
-                        category=category,
-                        confidence=0.5,
-                        detection_method=DetectionMethod.CAPTION_ANALYSIS,
-                        severity=SensitivityLevel.MODERATE,
-                        source="caption_heuristic_v1",
-                        details="Caption keyword match",
-                    ))
+                    flags.append(
+                        SafetyFlag(
+                            category=category,
+                            confidence=0.5,
+                            detection_method=DetectionMethod.CAPTION_ANALYSIS,
+                            severity=SensitivityLevel.MODERATE,
+                            source="caption_heuristic_v1",
+                            details="Caption keyword match",
+                        )
+                    )
                     break
 
         return flags
@@ -413,19 +441,24 @@ class ContentFilter:
         album = metadata.get("album", "")
         if album:
             sensitive_album_patterns = [
-                r"(?i)private", r"(?i)hidden", r"(?i)vault",
-                r"(?i)secret", r"(?i)personal",
+                r"(?i)private",
+                r"(?i)hidden",
+                r"(?i)vault",
+                r"(?i)secret",
+                r"(?i)personal",
             ]
             for pattern in sensitive_album_patterns:
                 if re.search(pattern, album):
-                    flags.append(SafetyFlag(
-                        category=SafetyCategory.PRIVATE,
-                        confidence=0.4,
-                        detection_method=DetectionMethod.METADATA_HEURISTIC,
-                        severity=SensitivityLevel.MODERATE,
-                        source="metadata_heuristic_v1",
-                        details="Album name suggests private content",
-                    ))
+                    flags.append(
+                        SafetyFlag(
+                            category=SafetyCategory.PRIVATE,
+                            confidence=0.4,
+                            detection_method=DetectionMethod.METADATA_HEURISTIC,
+                            severity=SensitivityLevel.MODERATE,
+                            source="metadata_heuristic_v1",
+                            details="Album name suggests private content",
+                        )
+                    )
                     break
 
         return flags
@@ -447,14 +480,16 @@ class ContentFilter:
         for category, patterns in sensitive_paths.items():
             for pattern in patterns:
                 if pattern in path_str:
-                    flags.append(SafetyFlag(
-                        category=category,
-                        confidence=0.3,
-                        detection_method=DetectionMethod.METADATA_HEURISTIC,
-                        severity=SensitivityLevel.MODERATE,
-                        source="folder_heuristic_v1",
-                        details="Folder path suggests sensitive content",
-                    ))
+                    flags.append(
+                        SafetyFlag(
+                            category=category,
+                            confidence=0.3,
+                            detection_method=DetectionMethod.METADATA_HEURISTIC,
+                            severity=SensitivityLevel.MODERATE,
+                            source="folder_heuristic_v1",
+                            details="Folder path suggests sensitive content",
+                        )
+                    )
                     break
 
         return flags
@@ -464,7 +499,7 @@ class ContentFilter:
     def _analyze_with_vision(self, memory: Memory) -> List[SafetyFlag]:
         """
         Use Gemini Vision to analyze image content.
-        
+
         REQUIRES: safety_settings.is_pixel_analysis_allowed() == True
         """
         # Verify disclosure acknowledged
@@ -484,9 +519,9 @@ class ContentFilter:
         try:
             # Create thumbnail
             thumbnail_bytes = self._create_thumbnail(memory.source_path)
-            
+
             # Encode as base64
-            thumbnail_b64 = base64.b64encode(thumbnail_bytes).decode('utf-8')
+            thumbnail_b64 = base64.b64encode(thumbnail_bytes).decode("utf-8")
 
             # Build prompt
             prompt = self._build_vision_prompt()
@@ -512,17 +547,17 @@ class ContentFilter:
             raise ImportError("PIL/Pillow is required for pixel analysis")
 
         img = Image.open(image_path)
-        
+
         # Convert to RGB if needed
-        if img.mode not in ('RGB', 'L'):
-            img = img.convert('RGB')
+        if img.mode not in ("RGB", "L"):
+            img = img.convert("RGB")
 
         # Resize
         img.thumbnail(self._config.max_thumbnail_size, Image.Resampling.LANCZOS)
 
         # Save to bytes
         buffer = io.BytesIO()
-        img.save(buffer, format='JPEG', quality=self._config.thumbnail_quality)
+        img.save(buffer, format="JPEG", quality=self._config.thumbnail_quality)
         return buffer.getvalue()
 
     def _build_vision_prompt(self) -> str:
@@ -561,14 +596,16 @@ class ContentFilter:
                 severity = severity_map.get(severity_str, SensitivityLevel.MODERATE)
                 reason = finding.get("reason", "")
 
-                flags.append(SafetyFlag(
-                    category=category,
-                    confidence=confidence,
-                    detection_method=DetectionMethod.AI_VISION_CLOUD,
-                    severity=severity,
-                    source="gemini_vision_v1",
-                    details=reason[:100],  # Truncate to avoid logging sensitive content
-                ))
+                flags.append(
+                    SafetyFlag(
+                        category=category,
+                        confidence=confidence,
+                        detection_method=DetectionMethod.AI_VISION_CLOUD,
+                        severity=severity,
+                        source="gemini_vision_v1",
+                        details=reason[:100],  # Truncate to avoid logging sensitive content
+                    )
+                )
 
         except Exception as e:
             self._logger.warning(f"Failed to parse vision response: {e}")
@@ -612,7 +649,7 @@ class ContentFilter:
     def _merge_detection_results(self, all_flags: List[SafetyFlag]) -> List[SafetyFlag]:
         """
         Merge flags from different detection methods.
-        
+
         If same category detected by multiple methods, keep the highest confidence.
         """
         if not all_flags:
@@ -629,18 +666,19 @@ class ContentFilter:
         merged = []
         for category, flags in by_category.items():
             best_flag = max(flags, key=lambda f: f.confidence)
-            
+
             # Note other methods in details if multiple
             if len(flags) > 1:
                 methods = ", ".join(f.detection_method.value for f in flags)
                 best_flag.details = f"Detected by: {methods}"
-            
+
             merged.append(best_flag)
 
         return merged
 
 
 # --- Module-Level Functions ---
+
 
 def verify_pixel_consent(safety_settings: SafetySettings) -> bool:
     """
@@ -693,7 +731,7 @@ def filter_memories_quick(
 
     config = FilterConfig(safety_settings=safety_settings)
     filter_engine = ContentFilter(config=config, safety_settings=safety_settings)
-    
+
     return filter_engine.filter_memories(memories)
 
 

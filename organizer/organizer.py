@@ -112,18 +112,35 @@ INVALID_PATH_CHARS = r'<>:"/\\|?*'
 INVALID_PATH_PATTERN = re.compile(f"[{re.escape(INVALID_PATH_CHARS)}]")
 
 # Files to skip during organization
-SKIP_FILES = frozenset({
-    ".ds_store", "thumbs.db", "desktop.ini", ".picasa.ini",
-    ".nomedia", ".thumbnails",
-})
+SKIP_FILES = frozenset(
+    {
+        ".ds_store",
+        "thumbs.db",
+        "desktop.ini",
+        ".picasa.ini",
+        ".nomedia",
+        ".thumbnails",
+    }
+)
 
 # Maximum folder name length
 MAX_FOLDER_NAME_LENGTH = 100
 
 # Month names for fallback organization
 MONTH_NAMES = [
-    "", "January", "February", "March", "April", "May", "June",
-    "July", "August", "September", "October", "November", "December",
+    "",
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
 ]
 
 
@@ -324,10 +341,9 @@ class MediaOrganizer:
         for p in plan:
             # Find common ancestor
             try:
-                dest_root = Path(*[
-                    part for part in dest_root.parts
-                    if part in p.destination_folder.parts
-                ])
+                dest_root = Path(
+                    *[part for part in dest_root.parts if part in p.destination_folder.parts]
+                )
             except (TypeError, ValueError):
                 pass
 
@@ -371,12 +387,14 @@ class MediaOrganizer:
                     dest_path.symlink_to(p.source_file.resolve())
 
                 # Log for undo
-                undo_log.append({
-                    "operation": self.mode.value,
-                    "source": str(p.source_file),
-                    "destination": str(dest_path),
-                    "timestamp": datetime.now(tz=timezone.utc).isoformat(),
-                })
+                undo_log.append(
+                    {
+                        "operation": self.mode.value,
+                        "source": str(p.source_file),
+                        "destination": str(dest_path),
+                        "timestamp": datetime.now(tz=timezone.utc).isoformat(),
+                    }
+                )
 
                 result.organized += 1
                 logger.debug(f"Organized: {p.source_file.name} -> {dest_path}")
@@ -492,7 +510,7 @@ class MediaOrganizer:
 
         # Truncate if too long
         if len(folder_name) > MAX_FOLDER_NAME_LENGTH:
-            folder_name = folder_name[:MAX_FOLDER_NAME_LENGTH - 3] + "..."
+            folder_name = folder_name[: MAX_FOLDER_NAME_LENGTH - 3] + "..."
 
         return folder_name
 

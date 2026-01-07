@@ -24,33 +24,28 @@ from typing import Any
 import click
 from rich.console import Console
 from rich.logging import RichHandler
-from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.progress import (
     BarColumn,
     Progress,
     SpinnerColumn,
-    TaskID,
     TextColumn,
     TimeElapsedColumn,
 )
-from rich.table import Table
 from rich.prompt import Confirm, Prompt
+from rich.table import Table
 
 from organizer import __version__
 from organizer.config import (
     APIKeyManager,
-    APIKeyNotFoundError,
     AppConfig,
-    ConfigurationError,
-    KeyStorageBackend,
     PrivacySettings,
     get_config,
 )
-from organizer.detection import detect_export_source, DetectionResult
+from organizer.detection import DetectionResult, detect_export_source
 from organizer.models import AnalysisConfig, MediaItem, SourcePlatform
-from organizer.parsers import parse_all_sources, ParserRegistry
-from organizer.report import generate_report, ReportFormat
+from organizer.parsers import parse_all_sources
+from organizer.report import ReportFormat, generate_report
 
 # Lazy imports for heavy modules
 # from organizer.ai import (...)
@@ -185,7 +180,8 @@ def cli(ctx: click.Context, verbose: bool, config: str | None) -> None:
 
 @cli.command()
 @click.option(
-    "--input", "-i",
+    "--input",
+    "-i",
     "input_paths",
     multiple=True,
     type=click.Path(exists=True, file_okay=False, path_type=Path),
@@ -193,13 +189,15 @@ def cli(ctx: click.Context, verbose: bool, config: str | None) -> None:
     help="Input directory to analyze (can specify multiple)",
 )
 @click.option(
-    "--output", "-o",
+    "--output",
+    "-o",
     type=click.Path(path_type=Path),
     default=Path("./life_story_report"),
     help="Output path for report (without extension)",
 )
 @click.option(
-    "--format", "-f",
+    "--format",
+    "-f",
     "output_format",
     type=click.Choice(["html", "json", "both"]),
     default="html",
@@ -253,7 +251,11 @@ def analyze(
         all_detections.extend(detections)
         if detections:
             for d in detections:
-                print_success(f"Found {d.platform.value} export in {path.name} ({d.confidence.value} confidence)")
+                confidence_str = d.confidence.value
+                platform_str = d.platform.value
+                print_success(
+                    f"Found {platform_str} export in {path.name} " f"({confidence_str} confidence)"
+                )
         else:
             print_warning(f"No recognized export format in {path}")
 
@@ -315,7 +317,7 @@ def analyze(
 
             try:
                 # Get config for parsing
-                config = get_config()
+                get_config()
 
                 # Parse this source
                 result = parse_all_sources(
@@ -330,7 +332,9 @@ def analyze(
                         print_warning(f"  {error}")
 
             except Exception as e:
-                print_error(f"Failed to parse {detection.root_path}: {e}")
+                # Escape path for Rich markup (paths with [...] are interpreted as tags)
+                escaped_path = str(detection.root_path).replace("[", "\\[").replace("]", "\\]")
+                print_error(f"Failed to parse {escaped_path}: {e}")
 
             progress.advance(task)
 
@@ -434,9 +438,9 @@ def _run_analysis(
     # Import here to avoid circular imports and speed up CLI startup
     from organizer.ai import (
         AINotAvailableError,
-        check_api_key_configured,
         FallbackAnalyzer,
         LifeStoryAnalyzer,
+        check_api_key_configured,
     )
     from organizer.ai.client import APIKeyMissingError
 
@@ -769,25 +773,29 @@ def scan(path: Path) -> None:
 
 @cli.command()
 @click.option(
-    "--input", "-i",
+    "--input",
+    "-i",
     "input_path",
     type=click.Path(exists=True, file_okay=False, path_type=Path),
     required=True,
     help="Input directory with media files",
 )
 @click.option(
-    "--output", "-o",
+    "--output",
+    "-o",
     type=click.Path(path_type=Path),
     required=True,
     help="Output directory for organized files",
 )
 @click.option(
-    "--report", "-r",
+    "--report",
+    "-r",
     type=click.Path(exists=True, path_type=Path),
     help="Use existing report for chapter names",
 )
 @click.option(
-    "--mode", "-m",
+    "--mode",
+    "-m",
     type=click.Choice(["copy", "move", "symlink"]),
     default="copy",
     help="Organization mode",
@@ -827,6 +835,7 @@ def organize(
     if report:
         try:
             import json
+
             from organizer.models import LifeStoryReport
 
             report_data = json.loads(report.read_text(encoding="utf-8"))

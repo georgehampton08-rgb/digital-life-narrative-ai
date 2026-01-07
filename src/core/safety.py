@@ -21,21 +21,23 @@ logger = logging.getLogger(__name__)
 
 # --- Enums ---
 
+
 class SafetyCategory(str, Enum):
     """
     Content categories for safety classification.
-    
+
     These are descriptive labels, not moral judgments. Users' personal media
     may contain any of these for legitimate reasons.
     """
-    NUDITY = "NUDITY"                    # Unclothed human bodies (artistic, personal, etc.)
-    SEXUAL = "SEXUAL"                    # Sexually explicit or suggestive content
-    VIOLENCE = "VIOLENCE"                # Graphic violence, injury, gore
-    SELF_HARM = "SELF_HARM"              # Content depicting or suggesting self-harm
-    SUBSTANCE = "SUBSTANCE"              # Drug/alcohol-related content
-    HATE = "HATE"                        # Hate symbols, slurs, discriminatory content
-    DISTURBING = "DISTURBING"            # Generally disturbing imagery (not fitting other categories)
-    PRIVATE = "PRIVATE"                  # Sensitive personal documents (IDs, medical, financial)
+
+    NUDITY = "NUDITY"  # Unclothed human bodies (artistic, personal, etc.)
+    SEXUAL = "SEXUAL"  # Sexually explicit or suggestive content
+    VIOLENCE = "VIOLENCE"  # Graphic violence, injury, gore
+    SELF_HARM = "SELF_HARM"  # Content depicting or suggesting self-harm
+    SUBSTANCE = "SUBSTANCE"  # Drug/alcohol-related content
+    HATE = "HATE"  # Hate symbols, slurs, discriminatory content
+    DISTURBING = "DISTURBING"  # Generally disturbing imagery (not fitting other categories)
+    PRIVATE = "PRIVATE"  # Sensitive personal documents (IDs, medical, financial)
     UNKNOWN_SENSITIVE = "UNKNOWN_SENSITIVE"  # Flagged as sensitive but category unclear
 
 
@@ -43,13 +45,14 @@ class SafetyAction(str, Enum):
     """
     What to do with flagged content.
     """
-    ALLOW = "ALLOW"                      # Treat normally, no special handling
-    FLAG_ONLY = "FLAG_ONLY"              # Include in report but mark as sensitive (badge/warning)
-    BLUR_IN_REPORT = "BLUR_IN_REPORT"    # Show blurred/obscured thumbnail in HTML report
-    HIDE_FROM_REPORT = "HIDE_FROM_REPORT" # Exclude from visual report but count in statistics
+
+    ALLOW = "ALLOW"  # Treat normally, no special handling
+    FLAG_ONLY = "FLAG_ONLY"  # Include in report but mark as sensitive (badge/warning)
+    BLUR_IN_REPORT = "BLUR_IN_REPORT"  # Show blurred/obscured thumbnail in HTML report
+    HIDE_FROM_REPORT = "HIDE_FROM_REPORT"  # Exclude from visual report but count in statistics
     EXCLUDE_FROM_AI = "EXCLUDE_FROM_AI"  # Don't send metadata to AI analysis
-    REQUIRE_REVIEW = "REQUIRE_REVIEW"    # Hold for user review before including
-    QUARANTINE = "QUARANTINE"            # Move to separate "review" section, don't process further
+    REQUIRE_REVIEW = "REQUIRE_REVIEW"  # Hold for user review before including
+    QUARANTINE = "QUARANTINE"  # Move to separate "review" section, don't process further
 
     def __lt__(self, other: "SafetyAction") -> bool:
         """Define strictness ordering."""
@@ -69,10 +72,11 @@ class SensitivityLevel(str, Enum):
     """
     How strict the detection/filtering should be.
     """
-    PERMISSIVE = "PERMISSIVE"            # Only flag clearly explicit content
-    MODERATE = "MODERATE"                # Flag explicit and suggestive content (default)
-    STRICT = "STRICT"                    # Flag anything potentially sensitive
-    PARANOID = "PARANOID"                # Flag aggressively, err on side of caution
+
+    PERMISSIVE = "PERMISSIVE"  # Only flag clearly explicit content
+    MODERATE = "MODERATE"  # Flag explicit and suggestive content (default)
+    STRICT = "STRICT"  # Flag anything potentially sensitive
+    PARANOID = "PARANOID"  # Flag aggressively, err on side of caution
 
     def __lt__(self, other: "SensitivityLevel") -> bool:
         """Define severity ordering."""
@@ -89,21 +93,24 @@ class DetectionMethod(str, Enum):
     """
     How content was classified and the relative reliability.
     """
+
     FILENAME_HEURISTIC = "FILENAME_HEURISTIC"  # Based on filename patterns (Low confidence)
     METADATA_HEURISTIC = "METADATA_HEURISTIC"  # Based on EXIF/metadata signals (Medium confidence)
-    CAPTION_ANALYSIS = "CAPTION_ANALYSIS"      # Based on caption/description text (Medium confidence)
-    AI_VISION_LOCAL = "AI_VISION_LOCAL"        # Local model analysis (High confidence - Future)
-    AI_VISION_CLOUD = "AI_VISION_CLOUD"        # Cloud AI analysis (Gemini Vision) (High confidence)
-    USER_TAGGED = "USER_TAGGED"                # Manually flagged by user (Highest confidence)
-    INHERITED = "INHERITED"                    # Inherited from album/folder classification
+    CAPTION_ANALYSIS = "CAPTION_ANALYSIS"  # Based on caption/description text (Medium confidence)
+    AI_VISION_LOCAL = "AI_VISION_LOCAL"  # Local model analysis (High confidence - Future)
+    AI_VISION_CLOUD = "AI_VISION_CLOUD"  # Cloud AI analysis (Gemini Vision) (High confidence)
+    USER_TAGGED = "USER_TAGGED"  # Manually flagged by user (Highest confidence)
+    INHERITED = "INHERITED"  # Inherited from album/folder classification
 
 
 # --- Models ---
+
 
 class SafetyFlag(BaseModel):
     """
     A single safety flag on a piece of content.
     """
+
     category: SafetyCategory
     confidence: float = Field(ge=0.0, le=1.0, default=0.5)
     detection_method: DetectionMethod
@@ -121,6 +128,7 @@ class SafetySettings(BaseModel):
     """
     User-configurable safety settings.
     """
+
     enabled: bool = True
     sensitivity: SensitivityLevel = SensitivityLevel.MODERATE
     default_action: SafetyAction = SafetyAction.FLAG_ONLY
@@ -141,7 +149,7 @@ class SafetySettings(BaseModel):
     detection_methods_enabled: Set[DetectionMethod] = Field(
         default_factory=lambda: {
             DetectionMethod.FILENAME_HEURISTIC,
-            DetectionMethod.METADATA_HEURISTIC
+            DetectionMethod.METADATA_HEURISTIC,
         }
     )
 
@@ -174,7 +182,11 @@ class SafetySettings(BaseModel):
     def to_summary(self) -> str:
         """Human-readable summary of settings."""
         if self.use_pixel_analysis:
-            pixel = "Enabled (disclosure acknowledged)" if self.is_pixel_analysis_allowed() else "Enabled (pending disclosure)"
+            pixel = (
+                "Enabled (disclosure acknowledged)"
+                if self.is_pixel_analysis_allowed()
+                else "Enabled (pending disclosure)"
+            )
         else:
             pixel = "Disabled (user opted out)"
         return f"Safety: {'Active' if self.enabled else 'Inactive'} (Sensitivity: {self.sensitivity.value}, Pixels: {pixel})"
@@ -184,6 +196,7 @@ class MemorySafetyState(BaseModel):
     """
     Safety classification state for a single Memory.
     """
+
     memory_id: str
     flags: List[SafetyFlag] = Field(default_factory=list)
     resolved_action: SafetyAction = SafetyAction.ALLOW
@@ -215,7 +228,7 @@ class MemorySafetyState(BaseModel):
         actions = [settings.get_action_for_category(f.category) for f in self.flags]
         self.resolved_action = max(actions) if actions else SafetyAction.ALLOW
         self.is_sensitive = True
-        self.requires_user_review = (self.resolved_action == SafetyAction.REQUIRE_REVIEW)
+        self.requires_user_review = self.resolved_action == SafetyAction.REQUIRE_REVIEW
 
     def has_category(self, category: SafetyCategory) -> bool:
         """Checks if the memory has been flagged for a specific category."""
@@ -232,11 +245,7 @@ class MemorySafetyState(BaseModel):
         if not self.flags:
             return None
         # Sort by confidence then severity (order)
-        sorted_flags = sorted(
-            self.flags, 
-            key=lambda x: (x.confidence, x.severity), 
-            reverse=True
-        )
+        sorted_flags = sorted(self.flags, key=lambda x: (x.confidence, x.severity), reverse=True)
         return sorted_flags[0].category
 
     def is_visually_safe(self) -> bool:
@@ -249,6 +258,7 @@ class SafetyReport(BaseModel):
     """
     Aggregated safety findings for a batch of memories.
     """
+
     total_analyzed: int
     total_flagged: int
     by_category: Dict[SafetyCategory, int] = Field(default_factory=dict)
@@ -265,31 +275,47 @@ class SafetyReport(BaseModel):
 
     def to_summary(self) -> str:
         """Human-readable summary of the safety report."""
-        return (f"Safety Analysis: {self.total_flagged}/{self.total_analyzed} flagged "
-                f"({self.flagged_percentage():.1f}%). {self.requires_review_count} pending review.")
+        return (
+            f"Safety Analysis: {self.total_flagged}/{self.total_analyzed} flagged "
+            f"({self.flagged_percentage():.1f}%). {self.requires_review_count} pending review."
+        )
 
 
 # --- Filename Heuristics ---
 
 SENSITIVE_FILENAME_PATTERNS: Dict[SafetyCategory, List[str]] = {
     SafetyCategory.NUDITY: [
-        r"(?i)nude", r"(?i)naked", r"(?i)nsfw",
-        r"(?i)boudoir", r"(?i)intimate",
+        r"(?i)nude",
+        r"(?i)naked",
+        r"(?i)nsfw",
+        r"(?i)boudoir",
+        r"(?i)intimate",
     ],
     SafetyCategory.PRIVATE: [
-        r"(?i)passport", r"(?i)license", r"(?i)ssn",
-        r"(?i)medical", r"(?i)bank.?statement", r"(?i)confidential",
+        r"(?i)passport",
+        r"(?i)license",
+        r"(?i)ssn",
+        r"(?i)medical",
+        r"(?i)bank.?statement",
+        r"(?i)confidential",
     ],
     SafetyCategory.VIOLENCE: [
-        r"(?i)gore", r"(?i)blood", r"(?i)injury", r"(?i)accident",
+        r"(?i)gore",
+        r"(?i)blood",
+        r"(?i)injury",
+        r"(?i)accident",
     ],
     SafetyCategory.SUBSTANCE: [
-        r"(?i)drugs", r"(?i)pills", r"(?i)weed", r"(?i)cocaine",
-    ]
+        r"(?i)drugs",
+        r"(?i)pills",
+        r"(?i)weed",
+        r"(?i)cocaine",
+    ],
 }
 
 
 # --- Helper Functions ---
+
 
 def resolve_action_for_flags(flags: List[SafetyFlag], settings: SafetySettings) -> SafetyAction:
     """
@@ -297,7 +323,7 @@ def resolve_action_for_flags(flags: List[SafetyFlag], settings: SafetySettings) 
     """
     if not flags or not settings.enabled:
         return SafetyAction.ALLOW
-    
+
     actions = [settings.get_action_for_category(f.category) for f in flags]
     return max(actions)
 
@@ -308,7 +334,7 @@ def is_visually_safe_for_report(state: MemorySafetyState, settings: SafetySettin
     """
     if not settings.enabled:
         return True
-    
+
     # These actions prevent normal display
     unsafe_actions = {
         SafetyAction.BLUR_IN_REPORT,
@@ -332,43 +358,58 @@ def get_display_treatment(state: MemorySafetyState, settings: SafetySettings) ->
     Get UI display instructions for a memory.
     """
     resolved = state.resolved_action
-    
+
     return {
-        "show_thumbnail": resolved != SafetyAction.HIDE_FROM_REPORT and resolved != SafetyAction.QUARANTINE,
-        "blur_thumbnail": resolved == SafetyAction.BLUR_IN_REPORT and settings.blur_sensitive_thumbnails,
+        "show_thumbnail": resolved != SafetyAction.HIDE_FROM_REPORT
+        and resolved != SafetyAction.QUARANTINE,
+        "blur_thumbnail": resolved == SafetyAction.BLUR_IN_REPORT
+        and settings.blur_sensitive_thumbnails,
         "show_badge": state.is_sensitive and settings.show_sensitivity_badges,
-        "badge_text": state.get_primary_category().value if state.is_sensitive and state.get_primary_category() else None,
-        "require_click_to_view": resolved in {SafetyAction.BLUR_IN_REPORT, SafetyAction.REQUIRE_REVIEW} and settings.require_click_to_reveal,
-        "warning_text": f"Content flagged as {state.get_primary_category().value}" if state.is_sensitive and state.get_primary_category() else None,
+        "badge_text": (
+            state.get_primary_category().value
+            if state.is_sensitive and state.get_primary_category()
+            else None
+        ),
+        "require_click_to_view": resolved
+        in {SafetyAction.BLUR_IN_REPORT, SafetyAction.REQUIRE_REVIEW}
+        and settings.require_click_to_reveal,
+        "warning_text": (
+            f"Content flagged as {state.get_primary_category().value}"
+            if state.is_sensitive and state.get_primary_category()
+            else None
+        ),
     }
 
 
-def create_safety_state(memory_id: str, flags: List[SafetyFlag], settings: SafetySettings) -> MemorySafetyState:
+def create_safety_state(
+    memory_id: str, flags: List[SafetyFlag], settings: SafetySettings
+) -> MemorySafetyState:
     """
     Factory function to create a fully resolved safety state.
     """
-    state = MemorySafetyState(
-        memory_id=memory_id,
-        flags=flags,
-        classified_at=datetime.now()
-    )
+    state = MemorySafetyState(memory_id=memory_id, flags=flags, classified_at=datetime.now())
     state.resolve_action(settings)
-    
+
     if settings.log_detections and state.is_sensitive:
         logger.info(f"Memory {memory_id} flagged for {state.get_primary_category()}")
-        
+
     return state
 
 
-def merge_safety_states(existing: MemorySafetyState, new_flags: List[SafetyFlag], settings: SafetySettings) -> MemorySafetyState:
+def merge_safety_states(
+    existing: MemorySafetyState, new_flags: List[SafetyFlag], settings: SafetySettings
+) -> MemorySafetyState:
     """
     Merge new flags into existing state, re-resolve action.
     """
     # Filter out duplicate flags (same category and method)
     for nf in new_flags:
-        if not any(f.category == nf.category and f.detection_method == nf.detection_method for f in existing.flags):
+        if not any(
+            f.category == nf.category and f.detection_method == nf.detection_method
+            for f in existing.flags
+        ):
             existing.flags.append(nf)
-    
+
     existing.resolve_action(settings)
     existing.classified_at = datetime.now()
     return existing
@@ -378,21 +419,23 @@ def check_filename_safety(filename: str) -> List[SafetyFlag]:
     """
     Check filename against heuristic patterns.
     Returns list of flags (empty if nothing detected).
-    
+
     Note: This is LOW confidence detection.
     """
     flags = []
     for category, patterns in SENSITIVE_FILENAME_PATTERNS.items():
         for pattern in patterns:
             if re.search(pattern, filename):
-                flags.append(SafetyFlag(
-                    category=category,
-                    confidence=0.3,  # Low confidence for filename heuristics
-                    detection_method=DetectionMethod.FILENAME_HEURISTIC,
-                    severity=SensitivityLevel.MODERATE,
-                    source="filename_heuristic_v1",
-                    details=f"Filename matched pattern: {pattern}"
-                ))
+                flags.append(
+                    SafetyFlag(
+                        category=category,
+                        confidence=0.3,  # Low confidence for filename heuristics
+                        detection_method=DetectionMethod.FILENAME_HEURISTIC,
+                        severity=SensitivityLevel.MODERATE,
+                        source="filename_heuristic_v1",
+                        details=f"Filename matched pattern: {pattern}",
+                    )
+                )
                 break  # Only one flag per category from filename
-    
+
     return flags

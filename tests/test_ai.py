@@ -4,24 +4,20 @@ from __future__ import annotations
 
 import asyncio
 import json
-import uuid
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
-from unittest.mock import MagicMock, patch, AsyncMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from organizer.models import (
     AnalysisConfig,
     Confidence,
-    GeoLocation,
     LifeStoryReport,
     MediaItem,
     MediaType,
     SourcePlatform,
 )
-
 
 # =============================================================================
 # Mock AI Responses
@@ -86,23 +82,24 @@ class TestAIClient:
         """Test AIClient initialization with API key."""
         with patch("organizer.ai.client.genai") as mock_genai:
             mock_genai.GenerativeModel.return_value = MagicMock()
-            
+
             from organizer.ai.client import AIClient
+
             client = AIClient(api_key="test-key-123")
-            
+
             mock_genai.configure.assert_called_once()
             assert client.model_name == "gemini-1.5-pro"
 
     def test_client_initialization_without_key_raises(self) -> None:
         """Test AIClient raises error without API key configured."""
-        with patch("organizer.ai.client.genai") as mock_genai:
+        with patch("organizer.ai.client.genai"):
             with patch("organizer.config.APIKeyManager") as mock_manager:
                 mock_manager_instance = MagicMock()
                 mock_manager_instance.retrieve_key.return_value = None
                 mock_manager.return_value = mock_manager_instance
-                
+
                 from organizer.ai.client import AIClient, APIKeyMissingError
-                
+
                 with pytest.raises(APIKeyMissingError):
                     AIClient()
 
@@ -115,16 +112,17 @@ class TestAIClient:
             mock_response.usage_metadata = MagicMock()
             mock_response.usage_metadata.prompt_token_count = 100
             mock_response.usage_metadata.candidates_token_count = 50
-            
+
             mock_model = MagicMock()
             mock_model.generate_content.return_value = mock_response
             mock_genai.GenerativeModel.return_value = mock_model
-            
+
             from organizer.ai.client import AIClient
+
             client = AIClient(api_key="test-key")
-            
+
             result = client.generate("Test prompt")
-            
+
             assert result.text == "Generated text response"
             mock_model.generate_content.assert_called()
 
@@ -136,29 +134,30 @@ class TestAIClient:
             mock_response.usage_metadata = MagicMock()
             mock_response.usage_metadata.prompt_token_count = 50
             mock_response.usage_metadata.candidates_token_count = 25
-            
+
             mock_model = MagicMock()
             mock_model.generate_content.return_value = mock_response
             mock_genai.GenerativeModel.return_value = mock_model
-            
+
             from organizer.ai.client import AIClient
+
             client = AIClient(api_key="test-key")
-            
+
             result = client.generate_json("Generate JSON")
-            
+
             assert result == {"key": "value"}
 
     def test_retry_on_rate_limit(self) -> None:
         """Test retry logic for rate limits."""
         with patch("organizer.ai.client.genai") as mock_genai:
             from google.api_core.exceptions import ResourceExhausted
-            
+
             mock_response = MagicMock()
             mock_response.text = "Success after retry"
             mock_response.usage_metadata = MagicMock()
             mock_response.usage_metadata.prompt_token_count = 50
             mock_response.usage_metadata.candidates_token_count = 25
-            
+
             mock_model = MagicMock()
             # First call raises, second succeeds
             mock_model.generate_content.side_effect = [
@@ -166,12 +165,13 @@ class TestAIClient:
                 mock_response,
             ]
             mock_genai.GenerativeModel.return_value = mock_model
-            
+
             from organizer.ai.client import AIClient
+
             client = AIClient(api_key="test-key")
             client._max_retries = 2
             client._base_delay = 0.01  # Fast retry for test
-            
+
             # Should succeed on retry
             result = client.generate("Test")
             assert result.text == "Success after retry"
@@ -182,10 +182,11 @@ class TestAIClient:
             mock_model = MagicMock()
             mock_model.generate_content.side_effect = Exception("Unknown error")
             mock_genai.GenerativeModel.return_value = mock_model
-            
+
             from organizer.ai.client import AIClient, AIRequestError
+
             client = AIClient(api_key="test-key")
-            
+
             with pytest.raises(AIRequestError):
                 client.generate("Test")
 
@@ -203,7 +204,7 @@ class TestLifeStoryAnalyzer:
         """Create a mock AI client."""
         client = MagicMock()
         client.model_name = "gemini-mock"
-        
+
         # Mock generate_json for different prompts
         def mock_generate_json(prompt: str, **kwargs) -> dict:
             if "chapter" in prompt.lower():
@@ -213,24 +214,24 @@ class TestLifeStoryAnalyzer:
             elif "platform" in prompt.lower():
                 return MOCK_PLATFORM_RESPONSE
             return {"result": "mock"}
-        
+
         client.generate_json.side_effect = mock_generate_json
-        
+
         # Mock generate for executive summary
         mock_response = MagicMock()
         mock_response.text = "This is a life story summary..."
         client.generate.return_value = mock_response
-        
+
         client.count_tokens.return_value = 100
-        
+
         return client
 
     @pytest.fixture
-    def analyzer(self, mock_client: MagicMock) -> "LifeStoryAnalyzer":
+    def analyzer(self, mock_client: MagicMock) -> LifeStoryAnalyzer:
         """Create analyzer with mock client."""
         from organizer.ai.life_analyzer import LifeStoryAnalyzer
         from organizer.config import PrivacySettings
-        
+
         return LifeStoryAnalyzer(
             client=mock_client,
             config=AnalysisConfig(),
@@ -239,12 +240,12 @@ class TestLifeStoryAnalyzer:
 
     def test_prepare_items_for_ai_privacy(
         self,
-        analyzer: "LifeStoryAnalyzer",
+        analyzer: LifeStoryAnalyzer,
         sample_media_items: list[MediaItem],
     ) -> None:
         """Test _prepare_items_for_ai() privacy filtering."""
         prepared = analyzer._prepare_items_for_ai(sample_media_items[:5])
-        
+
         assert len(prepared) == 5
         for item in prepared:
             assert "platform" in item
@@ -254,12 +255,12 @@ class TestLifeStoryAnalyzer:
 
     def test_generate_temporal_summary(
         self,
-        analyzer: "LifeStoryAnalyzer",
+        analyzer: LifeStoryAnalyzer,
         sample_media_items: list[MediaItem],
     ) -> None:
         """Test _generate_temporal_summary() statistics."""
         summary = analyzer._generate_temporal_summary(sample_media_items)
-        
+
         assert "total_items" in summary
         assert summary["total_items"] == len(sample_media_items)
         assert "items_by_year" in summary
@@ -268,15 +269,15 @@ class TestLifeStoryAnalyzer:
 
     def test_sample_items_for_prompt(
         self,
-        analyzer: "LifeStoryAnalyzer",
+        analyzer: LifeStoryAnalyzer,
         sample_media_items: list[MediaItem],
     ) -> None:
         """Test _sample_items_for_prompt() selection logic."""
         # Sample fewer than total
         sampled = analyzer._sample_items_for_prompt(sample_media_items, max_items=10)
-        
+
         assert len(sampled) == 10
-        
+
         # Should maintain temporal order
         timestamps = [i.timestamp for i in sampled if i.timestamp]
         sorted_timestamps = sorted(timestamps)
@@ -284,7 +285,7 @@ class TestLifeStoryAnalyzer:
 
     def test_sample_items_returns_all_when_small(
         self,
-        analyzer: "LifeStoryAnalyzer",
+        analyzer: LifeStoryAnalyzer,
     ) -> None:
         """Test sampling returns all items when count is small."""
         items = [
@@ -295,19 +296,19 @@ class TestLifeStoryAnalyzer:
             )
             for i in range(5)
         ]
-        
+
         sampled = analyzer._sample_items_for_prompt(items, max_items=10)
         assert len(sampled) == 5
 
     def test_analyze_full_flow(
         self,
-        analyzer: "LifeStoryAnalyzer",
+        analyzer: LifeStoryAnalyzer,
         sample_media_items: list[MediaItem],
     ) -> None:
         """Test analyze() full flow with mocked AI responses."""
         # Run async analyze
         report = asyncio.run(analyzer.analyze(sample_media_items))
-        
+
         assert isinstance(report, LifeStoryReport)
         assert report.total_media_analyzed == len(sample_media_items)
         assert len(report.chapters) > 0
@@ -315,17 +316,17 @@ class TestLifeStoryAnalyzer:
 
     def test_analyze_with_progress_callback(
         self,
-        analyzer: "LifeStoryAnalyzer",
+        analyzer: LifeStoryAnalyzer,
         sample_media_items: list[MediaItem],
     ) -> None:
         """Test analyze() calls progress callback."""
         progress_calls = []
-        
+
         def callback(stage: str, percent: float) -> None:
             progress_calls.append((stage, percent))
-        
-        report = asyncio.run(analyzer.analyze(sample_media_items, callback))
-        
+
+        asyncio.run(analyzer.analyze(sample_media_items, callback))
+
         assert len(progress_calls) > 0
         # Should have initialization and completion
         assert progress_calls[0][1] == 0.0
@@ -336,25 +337,25 @@ class TestLifeStoryAnalyzer:
         sample_media_items: list[MediaItem],
     ) -> None:
         """Test analyze() handles AI errors gracefully."""
-        from organizer.ai.life_analyzer import LifeStoryAnalyzer
         from organizer.ai.client import AIRequestError
+        from organizer.ai.life_analyzer import LifeStoryAnalyzer
         from organizer.config import PrivacySettings
-        
+
         # Create client that fails
         failing_client = MagicMock()
         failing_client.model_name = "gemini-mock"
         failing_client.generate_json.side_effect = AIRequestError("API Error")
         failing_client.generate.side_effect = AIRequestError("API Error")
-        
+
         analyzer = LifeStoryAnalyzer(
             client=failing_client,
             config=AnalysisConfig(),
             privacy=PrivacySettings(),
         )
-        
+
         # Should still produce a report (fallback chapters)
         report = asyncio.run(analyzer.analyze(sample_media_items))
-        
+
         assert isinstance(report, LifeStoryReport)
         # May have fallback chapters
 
@@ -368,101 +369,104 @@ class TestFallbackAnalyzer:
     """Tests for FallbackAnalyzer class."""
 
     @pytest.fixture
-    def analyzer(self) -> "FallbackAnalyzer":
+    def analyzer(self) -> FallbackAnalyzer:
         """Create FallbackAnalyzer instance."""
         from organizer.ai.fallback import FallbackAnalyzer
+
         return FallbackAnalyzer()
 
     def test_produces_valid_report(
         self,
-        analyzer: "FallbackAnalyzer",
+        analyzer: FallbackAnalyzer,
         sample_media_items: list[MediaItem],
     ) -> None:
         """Test FallbackAnalyzer produces valid report."""
         report = analyzer.analyze(sample_media_items)
-        
+
         assert isinstance(report, LifeStoryReport)
         assert report.total_media_analyzed == len(sample_media_items)
 
     def test_is_fallback_mode_true(
         self,
-        analyzer: "FallbackAnalyzer",
+        analyzer: FallbackAnalyzer,
         sample_media_items: list[MediaItem],
     ) -> None:
         """Test is_fallback_mode is True."""
         report = analyzer.analyze(sample_media_items)
-        
+
         assert report.is_fallback_mode is True
         assert report.ai_model_used == "none (fallback mode)"
 
     def test_statistics_accurate(
         self,
-        analyzer: "FallbackAnalyzer",
+        analyzer: FallbackAnalyzer,
         sample_media_items: list[MediaItem],
     ) -> None:
         """Test statistics are accurate."""
         report = analyzer.analyze(sample_media_items)
-        
+
         assert report.total_media_analyzed == len(sample_media_items)
-        
+
         # Should have chapters (yearly)
         assert len(report.chapters) > 0
 
     def test_yearly_chapters(
         self,
-        analyzer: "FallbackAnalyzer",
+        analyzer: FallbackAnalyzer,
         sample_media_items: list[MediaItem],
     ) -> None:
         """Test that chapters are organized by year."""
         report = analyzer.analyze(sample_media_items)
-        
+
         # Chapter titles should be "Year XXXX"
         for chapter in report.chapters:
             assert "Year" in chapter.title or chapter.title.isdigit()
 
     def test_fallback_chapter_low_confidence(
         self,
-        analyzer: "FallbackAnalyzer",
+        analyzer: FallbackAnalyzer,
         sample_media_items: list[MediaItem],
     ) -> None:
         """Test fallback chapters have LOW confidence."""
         report = analyzer.analyze(sample_media_items)
-        
+
         for chapter in report.chapters:
             assert chapter.confidence == Confidence.LOW
 
     def test_empty_platform_insights(
         self,
-        analyzer: "FallbackAnalyzer",
+        analyzer: FallbackAnalyzer,
         sample_media_items: list[MediaItem],
     ) -> None:
         """Test fallback has no platform insights (requires AI)."""
         report = analyzer.analyze(sample_media_items)
-        
+
         assert report.platform_insights == []
 
     def test_handles_empty_items(
         self,
-        analyzer: "FallbackAnalyzer",
+        analyzer: FallbackAnalyzer,
     ) -> None:
         """Test handling of empty item list."""
         report = analyzer.analyze([])
-        
+
         assert report.total_media_analyzed == 0
         assert len(report.chapters) == 0
 
     def test_fallback_summary_contains_cta(
         self,
-        analyzer: "FallbackAnalyzer",
+        analyzer: FallbackAnalyzer,
         sample_media_items: list[MediaItem],
     ) -> None:
         """Test fallback summary contains call-to-action."""
         report = analyzer.analyze(sample_media_items)
-        
+
         # Should mention how to enable AI
-        assert "fallback" in report.executive_summary.lower() or \
-               "ai" in report.executive_summary.lower() or \
-               "configure" in report.executive_summary.lower()
+        assert (
+            "fallback" in report.executive_summary.lower()
+            or "ai" in report.executive_summary.lower()
+            or "configure" in report.executive_summary.lower()
+        )
 
 
 # =============================================================================
@@ -479,9 +483,9 @@ class TestAIIntegration:
     ) -> None:
         """Test generate_fallback_report convenience function."""
         from organizer.ai.fallback import generate_fallback_report
-        
+
         report = generate_fallback_report(sample_media_items)
-        
+
         assert report.is_fallback_mode is True
 
     def test_is_fallback_mode_function(
@@ -490,10 +494,10 @@ class TestAIIntegration:
     ) -> None:
         """Test is_fallback_mode utility function."""
         from organizer.ai.fallback import is_fallback_mode
-        
+
         # Regular report
         assert is_fallback_mode(sample_life_report) is False
-        
+
         # Fallback report
         fallback_report = LifeStoryReport(
             generated_at=datetime.now(timezone.utc),

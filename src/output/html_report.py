@@ -676,9 +676,11 @@ BLURRED_IMAGE_TEMPLATE = """
 # DATA MODELS
 # =============================================================================
 
+
 @dataclass
 class ReportConfig:
     """Configuration for HTML report generation."""
+
     title: str = "Your Life Story"
     subtitle: Optional[str] = None
     theme: Literal["light", "dark", "auto"] = "auto"
@@ -699,6 +701,7 @@ class ReportConfig:
 @dataclass
 class ReportSection:
     """A section of the report."""
+
     id: str
     title: str
     content: str
@@ -711,10 +714,11 @@ class ReportSection:
 # HTML REPORT GENERATOR
 # =============================================================================
 
+
 class HTMLReportGenerator:
     """
     Generates beautiful, self-contained HTML reports from LifeStoryReport data.
-    
+
     This is the primary user-facing output of the application, showcasing
     AI-generated life narratives in an interactive, visually appealing format.
     """
@@ -727,13 +731,13 @@ class HTMLReportGenerator:
             config: Report configuration (uses defaults if None)
         """
         self._config = config or ReportConfig()
-        
+
         if Environment is None:
             logger.warning("Jinja2 not available, using simple template substitution")
             self._env = None
         else:
             self._env = Environment(autoescape=True)
-        
+
         self._templates: Dict[str, Any] = {}
 
     def generate(self, report: Any, output_path: Optional[Path] = None) -> str:
@@ -762,7 +766,7 @@ class HTMLReportGenerator:
         if output_path:
             output_path = Path(output_path)
             output_path.parent.mkdir(parents=True, exist_ok=True)
-            output_path.write_text(html_output, encoding='utf-8')
+            output_path.write_text(html_output, encoding="utf-8")
             logger.info(f"Report written to {output_path}")
 
         return html_output
@@ -784,78 +788,88 @@ class HTMLReportGenerator:
     def _build_context(self, report: Any) -> Dict[str, Any]:
         """Build template context from report data."""
         return {
-            'title': self._config.title,
-            'subtitle': self._config.subtitle,
-            'theme': self._config.theme,
-            'css': EMBEDDED_CSS + (self._config.custom_css or ''),
-            'js': EMBEDDED_JS,
-            'include_timeline': self._config.include_timeline,
-            'include_platform_insights': self._config.include_platform_insights,
-            'include_gaps': self._config.include_gaps_section,
-            'include_statistics': self._config.include_statistics,
-            'report': report,
-            'config': self._config,
+            "title": self._config.title,
+            "subtitle": self._config.subtitle,
+            "theme": self._config.theme,
+            "css": EMBEDDED_CSS + (self._config.custom_css or ""),
+            "js": EMBEDDED_JS,
+            "include_timeline": self._config.include_timeline,
+            "include_platform_insights": self._config.include_platform_insights,
+            "include_gaps": self._config.include_gaps_section,
+            "include_statistics": self._config.include_statistics,
+            "report": report,
+            "config": self._config,
         }
 
     def _render_all_sections(self, report: Any, context: Dict[str, Any]) -> List[ReportSection]:
         """Render all report sections."""
         sections = []
-        
-        sections.append(ReportSection(
-            id='header',
-            title='Header',
-            content=self._render_header(report),
-            order=0,
-        ))
-        
-        sections.append(ReportSection(
-            id='executive_summary',
-            title='Executive Summary',
-            content=self._render_executive_summary(report),
-            order=1,
-        ))
-        
+
+        sections.append(
+            ReportSection(
+                id="header",
+                title="Header",
+                content=self._render_header(report),
+                order=0,
+            )
+        )
+
+        sections.append(
+            ReportSection(
+                id="executive_summary",
+                title="Executive Summary",
+                content=self._render_executive_summary(report),
+                order=1,
+            )
+        )
+
         if self._config.include_timeline:
-            sections.append(ReportSection(
-                id='timeline',
-                title='Timeline',
-                content=self._render_timeline(report),
-                order=2,
-            ))
-        
-        sections.append(ReportSection(
-            id='chapters',
-            title='Chapters',
-            content=self._render_chapters_section(report),
-            order=3,
-        ))
-        
-        sections.append(ReportSection(
-            id='footer',
-            title='Footer',
-            content=self._render_footer(report),
-            order=99,
-        ))
-        
+            sections.append(
+                ReportSection(
+                    id="timeline",
+                    title="Timeline",
+                    content=self._render_timeline(report),
+                    order=2,
+                )
+            )
+
+        sections.append(
+            ReportSection(
+                id="chapters",
+                title="Chapters",
+                content=self._render_chapters_section(report),
+                order=3,
+            )
+        )
+
+        sections.append(
+            ReportSection(
+                id="footer",
+                title="Footer",
+                content=self._render_footer(report),
+                order=99,
+            )
+        )
+
         return sections
 
     def _render_header(self, report: Any) -> str:
         """Render the header section."""
-        is_fallback = getattr(report, 'is_fallback', False)
-        total_memories = getattr(report, 'total_memories', 0)
-        date_range = getattr(report, 'date_range', None)
-        
+        is_fallback = getattr(report, "is_fallback", False)
+        total_memories = getattr(report, "total_memories", 0)
+        date_range = getattr(report, "date_range", None)
+
         fallback_warning = ""
         if is_fallback and self._config.show_fallback_warning:
             fallback_warning = FALLBACK_WARNING_TEMPLATE
-        
+
         date_range_str = ""
         if date_range:
-            start = getattr(date_range, 'start', None)
-            end = getattr(date_range, 'end', None)
+            start = getattr(date_range, "start", None)
+            end = getattr(date_range, "end", None)
             if start and end:
                 date_range_str = self._format_date_range(start, end)
-        
+
         return f"""
         <header>
             <div class="header-content">
@@ -872,12 +886,12 @@ class HTMLReportGenerator:
 
     def _render_executive_summary(self, report: Any) -> str:
         """Render the executive summary section."""
-        summary = getattr(report, 'executive_summary', 'No summary available.')
-        is_fallback = getattr(report, 'is_fallback', False)
-        
+        summary = getattr(report, "executive_summary", "No summary available.")
+        is_fallback = getattr(report, "is_fallback", False)
+
         if is_fallback:
             summary = "This report contains statistical analysis of your media library organized by year. Configure Gemini API to unlock AI-generated narratives and insights."
-        
+
         return f"""
         <section id="summary">
             <h2>Your Story</h2>
@@ -889,23 +903,23 @@ class HTMLReportGenerator:
 
     def _render_timeline(self, report: Any) -> str:
         """Render interactive timeline."""
-        chapters = getattr(report, 'chapters', [])
-        
+        chapters = getattr(report, "chapters", [])
+
         if not chapters:
             return ""
-        
+
         markers_html = ""
         for i, chapter in enumerate(chapters):
             position = (i / max(len(chapters) - 1, 1)) * 100
-            title = getattr(chapter, 'title', f'Chapter {i+1}')
-            markers_html += f'''
+            title = getattr(chapter, "title", f"Chapter {i+1}")
+            markers_html += f"""
                 <div class="timeline-marker" 
                      style="left: {position}%"
                      onclick="scrollToChapter('chapter-{i}')"
                      title="{html_lib.escape(title)}">
                 </div>
-            '''
-        
+            """
+
         return f"""
         <section id="timeline">
             <h2>Timeline</h2>
@@ -917,35 +931,41 @@ class HTMLReportGenerator:
         </section>
         """
 
-    def _render_chapter(self, chapter: Any, index: int, memories: Optional[List[Any]] = None) -> str:
+    def _render_chapter(
+        self, chapter: Any, index: int, memories: Optional[List[Any]] = None
+    ) -> str:
         """Render a single chapter card."""
-        title = getattr(chapter, 'title', f'Chapter {index + 1}')
-        narrative = getattr(chapter, 'narrative', '')
-        date_range = getattr(chapter, 'date_range', None)
-        insights = getattr(chapter, 'insights', [])
-        themes = getattr(chapter, 'themes', [])
-        
+        title = getattr(chapter, "title", f"Chapter {index + 1}")
+        narrative = getattr(chapter, "narrative", "")
+        date_range = getattr(chapter, "date_range", None)
+        insights = getattr(chapter, "insights", [])
+        themes = getattr(chapter, "themes", [])
+
         date_range_str = ""
         if date_range:
-            start = getattr(date_range, 'start', None)
-            end = getattr(date_range, 'end', None)
+            start = getattr(date_range, "start", None)
+            end = getattr(date_range, "end", None)
             if start and end:
                 date_range_str = self._format_date_range(start, end)
-        
+
         themes_html = ""
         if themes:
-            themes_html = " ".join([f'<span class="badge">{html_lib.escape(str(t))}</span>' for t in themes[:5]])
-        
+            themes_html = " ".join(
+                [f'<span class="badge">{html_lib.escape(str(t))}</span>' for t in themes[:5]]
+            )
+
         insights_html = ""
         if insights:
-            insights_items = "\n".join([f"<li>{html_lib.escape(str(i))}</li>" for i in insights[:5]])
-            insights_html = f'''
+            insights_items = "\n".join(
+                [f"<li>{html_lib.escape(str(i))}</li>" for i in insights[:5]]
+            )
+            insights_html = f"""
                 <div class="chapter-insights">
                     <h3>Key Insights</h3>
                     <ul>{insights_items}</ul>
                 </div>
-            '''
-        
+            """
+
         return f"""
         <div class="chapter-card" id="chapter-{index}">
             <h3 class="chapter-title">{html_lib.escape(title)}</h3>
@@ -960,16 +980,15 @@ class HTMLReportGenerator:
 
     def _render_chapters_section(self, report: Any) -> str:
         """Render all chapters."""
-        chapters = getattr(report, 'chapters', [])
-        
+        chapters = getattr(report, "chapters", [])
+
         if not chapters:
             return "<section><h2>Chapters</h2><p>No chapters generated.</p></section>"
-        
-        chapters_html = "\n".join([
-            self._render_chapter(chapter, i)
-            for i, chapter in enumerate(chapters)
-        ])
-        
+
+        chapters_html = "\n".join(
+            [self._render_chapter(chapter, i) for i, chapter in enumerate(chapters)]
+        )
+
         return f"""
         <section id="chapters">
             <h2>Your Life in Chapters</h2>
@@ -980,15 +999,15 @@ class HTMLReportGenerator:
     def _render_footer(self, report: Any) -> str:
         """Render footer section."""
         generation_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        model_used = getattr(report, 'model_version', 'Unknown')
-        
+        model_used = getattr(report, "model_version", "Unknown")
+
         metadata_html = ""
         if self._config.show_generation_metadata:
             metadata_html = f"""
                 <p>Generated on {generation_time}</p>
                 <p class="powered-by">Powered by Google Gemini ({model_used})</p>
             """
-        
+
         return f"""
         <footer>
             <div class="footer-content">
@@ -1003,35 +1022,35 @@ class HTMLReportGenerator:
         """Assemble final HTML from sections."""
         # Sort sections by order
         sections = sorted([s for s in sections if s.visible], key=lambda x: x.order)
-        
+
         # Build section content map
         section_map = {s.id: s.content for s in sections}
-        
+
         # Simple template substitution (will use Jinja2 when available)
         template_vars = {
             **context,
             **section_map,
-            'executive_summary': section_map.get('executive_summary', ''),
-            'timeline': section_map.get('timeline', ''),
-            'chapters': section_map.get('chapters', ''),
-            'platform_insights': '',
-            'gaps': '',
-            'statistics': '',
+            "executive_summary": section_map.get("executive_summary", ""),
+            "timeline": section_map.get("timeline", ""),
+            "chapters": section_map.get("chapters", ""),
+            "platform_insights": "",
+            "gaps": "",
+            "statistics": "",
         }
-        
+
         html_output = BASE_TEMPLATE
         for key, value in template_vars.items():
-            html_output = html_output.replace('{{ ' + key + ' }}', str(value))
-        
+            html_output = html_output.replace("{{ " + key + " }}", str(value))
+
         # Handle conditionals (simple approach)
-        if not context.get('include_timeline'):
-            html_output = html_output.replace('{% if include_timeline %}', '<!--')
-            html_output = html_output.replace('{% endif %}', '-->')
-        
+        if not context.get("include_timeline"):
+            html_output = html_output.replace("{% if include_timeline %}", "<!--")
+            html_output = html_output.replace("{% endif %}", "-->")
+
         return html_output
 
     # Utility methods
-    
+
     def _format_date(self, dt: Any) -> str:
         """Format date for display."""
         if isinstance(dt, datetime):
@@ -1058,12 +1077,13 @@ class HTMLReportGenerator:
         """Truncate text with ellipsis."""
         if len(text) <= max_length:
             return text
-        return text[:max_length].rsplit(' ', 1)[0] + '...'
+        return text[:max_length].rsplit(" ", 1)[0] + "..."
 
 
 # =============================================================================
 # CONVENIENCE FUNCTIONS
 # =============================================================================
+
 
 def generate_report(
     report: Any,

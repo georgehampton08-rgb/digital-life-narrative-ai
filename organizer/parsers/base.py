@@ -634,9 +634,7 @@ def parse_all_sources(
             parser = ParserRegistry.get_parser(detection.platform)
 
             if not parser:
-                logger.warning(
-                    f"No parser available for {detection.platform.value}"
-                )
+                logger.warning(f"No parser available for {detection.platform.value}")
                 continue
 
             logger.info(

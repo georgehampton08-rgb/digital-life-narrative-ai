@@ -298,6 +298,7 @@ class LifeStoryAnalyzer:
             InsufficientDataError: If not enough items for analysis.
             AINotAvailableError: If AI completely fails.
         """
+
         def report_progress(stage: str, percent: float) -> None:
             if progress_callback:
                 progress_callback(stage, percent)
@@ -403,8 +404,7 @@ class LifeStoryAnalyzer:
         # Filter excluded platforms
         if self.privacy.exclude_platforms:
             items = [
-                item for item in items
-                if item.source_platform not in self.privacy.exclude_platforms
+                item for item in items if item.source_platform not in self.privacy.exclude_platforms
             ]
 
         # Sort by timestamp (items without timestamp go to end)
@@ -435,12 +435,10 @@ class LifeStoryAnalyzer:
             if self.privacy.truncate_captions and summary.get("caption"):
                 caption = summary["caption"]
                 if len(caption) > self.privacy.truncate_captions:
-                    summary["caption"] = caption[:self.privacy.truncate_captions] + "..."
+                    summary["caption"] = caption[: self.privacy.truncate_captions] + "..."
 
             if self.privacy.hash_people_names and summary.get("people"):
-                summary["people"] = [
-                    self._hash_name(name) for name in summary["people"]
-                ]
+                summary["people"] = [self._hash_name(name) for name in summary["people"]]
 
             result.append(summary)
 
@@ -623,7 +621,8 @@ class LifeStoryAnalyzer:
 
                 # Count items in this chapter
                 media_count = sum(
-                    1 for item in items
+                    1
+                    for item in items
                     if item.timestamp and start_date <= item.timestamp.date() <= end_date
                 )
 
@@ -740,9 +739,10 @@ class LifeStoryAnalyzer:
             try:
                 # Get items for this chapter
                 chapter_items = [
-                    item for item in items
-                    if item.timestamp and
-                    chapter.start_date <= item.timestamp.date() <= chapter.end_date
+                    item
+                    for item in items
+                    if item.timestamp
+                    and chapter.start_date <= item.timestamp.date() <= chapter.end_date
                 ]
 
                 if not chapter_items:
@@ -756,9 +756,7 @@ class LifeStoryAnalyzer:
                 prepared = self._prepare_items_for_ai(sampled)
 
                 # Store representative IDs
-                chapter.representative_media_ids = [
-                    item.id for item in sampled[:5]
-                ]
+                chapter.representative_media_ids = [item.id for item in sampled[:5]]
 
                 prompt = NARRATIVE_USER_PROMPT.format(
                     title=chapter.title,
@@ -898,12 +896,18 @@ class LifeStoryAnalyzer:
         # Format chapters for prompt
         chapters_summary = []
         for chapter in chapters:
-            chapters_summary.append({
-                "title": chapter.title,
-                "period": f"{chapter.start_date} to {chapter.end_date}",
-                "themes": chapter.themes,
-                "narrative_preview": chapter.narrative[:300] + "..." if len(chapter.narrative) > 300 else chapter.narrative,
-            })
+            chapters_summary.append(
+                {
+                    "title": chapter.title,
+                    "period": f"{chapter.start_date} to {chapter.end_date}",
+                    "themes": chapter.themes,
+                    "narrative_preview": (
+                        chapter.narrative[:300] + "..."
+                        if len(chapter.narrative) > 300
+                        else chapter.narrative
+                    ),
+                }
+            )
 
         # Format statistics
         statistics = {
@@ -911,20 +915,20 @@ class LifeStoryAnalyzer:
             "years_covered": temporal_summary["years_covered"],
             "date_range": temporal_summary["date_range"],
             "platforms_used": list(temporal_summary["items_by_platform"].keys()),
-            "top_locations": dict(sorted(
-                temporal_summary["locations"].items(),
-                key=lambda x: x[1],
-                reverse=True
-            )[:5]),
+            "top_locations": dict(
+                sorted(temporal_summary["locations"].items(), key=lambda x: x[1], reverse=True)[:5]
+            ),
         }
 
         # Format platform insights
         platform_text = []
         for insight in platform_insights:
-            platform_text.append({
-                "platform": insight.platform.value,
-                "pattern": insight.usage_pattern,
-            })
+            platform_text.append(
+                {
+                    "platform": insight.platform.value,
+                    "pattern": insight.usage_pattern,
+                }
+            )
 
         prompt = EXECUTIVE_SUMMARY_USER_PROMPT.format(
             chapters_summary=json.dumps(chapters_summary, indent=2),
@@ -1083,11 +1087,10 @@ class LifeStoryAnalyzer:
 
         # 2. Prioritize items with rich metadata
         rich_items = [
-            i for i in remaining
-            if items[i].location or items[i].people or items[i].caption
+            i for i in remaining if items[i].location or items[i].people or items[i].caption
         ]
         random.shuffle(rich_items)
-        for idx in rich_items[:max_items // 4]:
+        for idx in rich_items[: max_items // 4]:
             add_item(idx)
 
         # 3. Platform diversity
@@ -1097,7 +1100,7 @@ class LifeStoryAnalyzer:
 
         for platform, indices in by_platform.items():
             random.shuffle(indices)
-            for idx in indices[:max_items // (len(by_platform) * 2)]:
+            for idx in indices[: max_items // (len(by_platform) * 2)]:
                 add_item(idx)
 
         # 4. Fill remaining with random samples
@@ -1143,9 +1146,7 @@ class LifeStoryAnalyzer:
         if summary["locations"]:
             lines.append("")
             lines.append("Top locations:")
-            sorted_locs = sorted(
-                summary["locations"].items(), key=lambda x: x[1], reverse=True
-            )[:5]
+            sorted_locs = sorted(summary["locations"].items(), key=lambda x: x[1], reverse=True)[:5]
             for loc, count in sorted_locs:
                 lines.append(f"  {loc}: {count}")
 
