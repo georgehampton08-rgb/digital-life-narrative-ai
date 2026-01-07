@@ -763,7 +763,9 @@ def scan(path: Path) -> None:
     console.print(f"Total files: {total_files:,}")
 
     console.print()
-    console.print("To analyze: [bold]organizer analyze -i", str(path), "-o ./my_story[/bold]")
+    # Escape path to avoid Rich markup interpretation
+    escaped_path = str(path).replace("[", "\\[").replace("]", "\\]")
+    console.print(f"To analyze: [bold]organizer analyze -i {escaped_path} -o ./my_story[/bold]")
 
 
 # =============================================================================
@@ -927,7 +929,9 @@ def main() -> None:
         print_info("Interrupted.")
         sys.exit(130)
     except Exception as e:
-        print_error(f"Unexpected error: {e}")
+        # Escape any Rich markup in the error message
+        error_msg = str(e).replace("[", "\\[").replace("]", "\\]")
+        print_error(f"Unexpected error: {error_msg}")
         logger.exception("Unexpected error")
         sys.exit(1)
 
