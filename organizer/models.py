@@ -67,17 +67,19 @@ class SourcePlatform(str, Enum):
 
 
 class Confidence(str, Enum):
-    """Confidence level for AI-inferred or extracted data.
+    """AI confidence levels for generated content."""
 
-    Attributes:
-        HIGH: Strong confidence (explicit metadata, verified data)
-        MEDIUM: Moderate confidence (inferred from context, partial data)
-        LOW: Low confidence (best guess, fallback values)
-    """
-
-    HIGH = "high"
-    MEDIUM = "medium"
     LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+
+
+class AnalysisDepth(str, Enum):
+    """Depth of AI analysis, balancing cost and richness."""
+
+    QUICK = "quick"  # Minimum samples, text-focused
+    STANDARD = "standard"  # Balanced sampling (default)
+    DEEP = "deep"  # Aggressive sampling for maximal richness
 
 
 # =============================================================================
@@ -274,6 +276,40 @@ class ParseResult(BaseModel):
 
 
 # =============================================================================
+# Configuration Models
+# =============================================================================
+
+
+class AnalysisConfig(BaseModel):
+    """Configuration settings for AI analysis.
+
+    Controls various aspects of how the AI analyzes media and
+    generates the life story report.
+
+    Attributes:
+        privacy_mode: If True, send minimal data to AI
+        analysis_depth: Depth of visual and narrative analysis
+        vision_model_name: Optional custom model name for vision tasks
+    """
+
+    min_chapter_duration_days: int = Field(default=30, ge=1)
+    max_chapters: int = Field(default=20, ge=1, le=100)
+    include_platform_analysis: bool = True
+    detect_gaps_threshold_days: int = Field(default=60, ge=1)
+    privacy_mode: bool = False
+    analysis_depth: AnalysisDepth = AnalysisDepth.STANDARD
+    vision_model_name: str | None = None
+
+    @field_validator("min_chapter_duration_days")
+    @classmethod
+    def validate_min_chapter_duration(cls, v: int) -> int:
+        """Validate minimum chapter duration is reasonable."""
+        if v > 365:
+            raise ValueError("min_chapter_duration_days should not exceed 365 days")
+        return v
+
+
+# =============================================================================
 # AI-Generated Models
 # =============================================================================
 
@@ -296,6 +332,7 @@ class LifeChapter(BaseModel):
         media_count: Number of media items in this chapter
         representative_media_ids: Sample MediaItem IDs representing the chapter
         confidence: AI confidence in this chapter analysis
+        discovery_evidence: Reasoning and evidence used to identify this chapter
     """
 
     id: str = Field(default_factory=lambda: str(uuid4()))
@@ -309,6 +346,7 @@ class LifeChapter(BaseModel):
     media_count: int = 0
     representative_media_ids: list[str] = Field(default_factory=list)
     confidence: Confidence = Confidence.MEDIUM
+    discovery_evidence: str | None = None
 
     @model_validator(mode="after")
     def validate_date_range(self) -> "LifeChapter":
@@ -396,7 +434,9 @@ class LifeStoryReport(BaseModel):
         is_fallback_mode: True if AI was unavailable
     """
 
-    generated_at: datetime = Field(default_factory=datetime.now)
+    analysis_config: AnalysisConfig
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    usage_metrics: dict[str, Any] = Field(default_factory=dict)
     ai_model_used: str
     total_media_analyzed: int
     date_range: tuple[date, date] | None = None
@@ -427,35 +467,3 @@ class LifeStoryReport(BaseModel):
         return end.year - start.year + 1
 
 
-# =============================================================================
-# Configuration Models
-# =============================================================================
-
-
-class AnalysisConfig(BaseModel):
-    """Configuration settings for AI analysis.
-
-    Controls various aspects of how the AI analyzes media and
-    generates the life story report.
-
-    Attributes:
-        min_chapter_duration_days: Minimum days for a chapter
-        max_chapters: Maximum number of chapters to generate
-        include_platform_analysis: Include per-platform insights
-        detect_gaps_threshold_days: Minimum gap size to report
-        privacy_mode: If True, send minimal data to AI
-    """
-
-    min_chapter_duration_days: int = Field(default=30, ge=1)
-    max_chapters: int = Field(default=20, ge=1, le=100)
-    include_platform_analysis: bool = True
-    detect_gaps_threshold_days: int = Field(default=60, ge=1)
-    privacy_mode: bool = False
-
-    @field_validator("min_chapter_duration_days")
-    @classmethod
-    def validate_min_chapter_duration(cls, v: int) -> int:
-        """Validate minimum chapter duration is reasonable."""
-        if v > 365:
-            raise ValueError("min_chapter_duration_days should not exceed 365 days")
-        return v

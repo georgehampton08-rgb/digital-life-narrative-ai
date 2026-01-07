@@ -27,6 +27,8 @@ from organizer.config import (
     KeyStorageBackend,
     get_config,
 )
+from organizer.ai.usage_tracker import get_tracker
+from organizer.ai.cache import AICache
 
 logger = logging.getLogger(__name__)
 
@@ -96,6 +98,7 @@ class AIResponse:
         completion_tokens: Number of tokens in the completion (if available).
         finish_reason: Why generation stopped (if available).
         raw_response: The original response object from the API.
+        cached: Whether the response was served from cache.
     """
 
     text: str
@@ -103,7 +106,8 @@ class AIResponse:
     prompt_tokens: int | None = None
     completion_tokens: int | None = None
     finish_reason: str | None = None
-    raw_response: Any = field(default=None, repr=False)
+    raw_response: Any | None = field(default=None, repr=False)
+    cached: bool = False
 
 
 # =============================================================================
@@ -213,6 +217,10 @@ class AIClient:
         system_instruction: str | None = None,
         temperature: float | None = None,
         max_tokens: int | None = None,
+        operation: str = "custom",
+        cache: AICache | None = None,
+        cache_key: str | None = None,
+        model_name: str | None = None,
     ) -> AIResponse:
         """Generate a response from the AI model.
 
@@ -237,16 +245,50 @@ class AIClient:
             max_tokens=max_tokens,
         )
 
+        # Check cache first
+        if cache and cache_key:
+            cached = cache.load(cache_key)
+            if cached:
+                logger.debug(f"Cache hit for {operation}")
+                return AIResponse(
+                    text=cached["text"],
+                    model=target_model,
+                    finish_reason="STOP",
+                    raw_response=None,
+                    cached=True
+                )
+
+        start_time = time.time()
+        
+        # Determine which model to use
+        target_model = model_name or self.settings.model_name
+
         def do_generate():
             return self._client.models.generate_content(
-                model=self.settings.model_name,
+                model=target_model,
                 contents=contents,
                 config=config,
             )
 
         try:
             response = self._with_retry(do_generate)
-            return self._parse_response(response)
+            ai_res = self._parse_response(response)
+            
+            # Record usage
+            latency = (time.time() - start_time) * 1000
+            get_tracker().record(
+                model=target_model,
+                operation=operation,
+                prompt_tokens=ai_res.prompt_tokens or 0,
+                completion_tokens=ai_res.completion_tokens or 0,
+                latency_ms=latency
+            )
+
+            # Store in cache
+            if cache and cache_key:
+                cache.store(cache_key, {"text": ai_res.text})
+
+            return ai_res
 
         except AIClientError:
             raise
@@ -258,6 +300,10 @@ class AIClient:
         self,
         contents: str | list[Any],
         system_instruction: str | None = None,
+        operation: str = "custom_json",
+        cache: AICache | None = None,
+        cache_key: str | None = None,
+        model_name: str | None = None,
     ) -> dict[str, Any]:
         """Generate a JSON response from the AI model.
 
@@ -289,6 +335,10 @@ class AIClient:
             contents=contents,
             system_instruction=full_instruction,
             temperature=0.3,  # Lower temperature for structured output
+            operation=operation,
+            cache=cache,
+            cache_key=cache_key,
+            model_name=model_name,
         )
 
         # Parse JSON from response

@@ -20,6 +20,7 @@ __email__ = "georgehampton08@gmail.com"
 
 from organizer.models import (
     AnalysisConfig,
+    AnalysisDepth,
     Confidence,
     DataGap,
     GeoLocation,
@@ -49,4 +50,5 @@ __all__ = [
     "PlatformBehaviorInsight",
     "DataGap",
     "AnalysisConfig",
+    "AnalysisDepth",
 ]

@@ -35,6 +35,9 @@ from organizer.ai.client import (
     get_client,
 )
 from organizer.config import PrivacySettings
+from organizer.ai.client import AIClient, AIResponse, estimate_tokens
+from organizer.ai.usage_tracker import get_tracker, UsageTracker
+from organizer.ai.cache import AICache
 from organizer.models import (
     AnalysisConfig,
     Confidence,
@@ -280,6 +283,7 @@ class LifeStoryAnalyzer:
         client: AIClient | None = None,
         config: AnalysisConfig | None = None,
         privacy: PrivacySettings | None = None,
+        cache_enabled: bool = True,
     ) -> None:
         """Initialize the Life Story Analyzer.
 
@@ -287,12 +291,16 @@ class LifeStoryAnalyzer:
             client: AI client for Gemini. Creates one if None.
             config: Analysis configuration. Uses defaults if None.
             privacy: Privacy settings. Uses defaults if None.
+            cache_enabled: Whether to enable AI response caching.
 
         Raises:
             AINotAvailableError: If AI client cannot be initialized.
         """
         self.config = config or AnalysisConfig()
         self.privacy = privacy or PrivacySettings()
+        self.cache = AICache(enabled=cache_enabled)
+        self._media_fingerprint: str | None = None
+        self._config_fingerprint: str | None = None
 
         if client is None:
             try:
@@ -328,6 +336,7 @@ class LifeStoryAnalyzer:
             InsufficientDataError: If not enough items for analysis.
             AINotAvailableError: If AI completely fails.
         """
+        analysis_start_time = datetime.now(tz=timezone.utc)
 
         def report_progress(stage: str, percent: float) -> None:
             if progress_callback:
@@ -399,7 +408,11 @@ class LifeStoryAnalyzer:
         if dates:
             date_range = (min(dates), max(dates))
 
+        # Capture usage metrics for this run
+        usage_summary = get_tracker().get_summary(start=analysis_start_time)
+
         report = LifeStoryReport(
+            analysis_config=self.config,
             generated_at=datetime.now(tz=timezone.utc),
             ai_model_used=self.client.model_name,
             total_media_analyzed=len(items),
@@ -410,6 +423,7 @@ class LifeStoryAnalyzer:
             detected_patterns=self._detect_patterns(temporal_summary),
             data_gaps=data_gaps,
             data_quality_notes=self._assess_data_quality(items, temporal_summary),
+            usage_metrics=usage_summary.__dict__,
             is_fallback_mode=False,
         )
 
@@ -582,24 +596,48 @@ class LifeStoryAnalyzer:
         # Format sample items
         items_str = json.dumps(prepared, indent=2, default=str)
 
+        # Sampling logic based on depth
+        max_vision_images = 5 # Default standard
+        if self.config.analysis_depth == AnalysisDepth.QUICK:
+            max_vision_images = 1
+        elif self.config.analysis_depth == AnalysisDepth.DEEP:
+            max_vision_images = 10
+
+        # Prepare fingerprints if not already done
+        if not self._media_fingerprint:
+            self._media_fingerprint = self._fingerprint_media_set(items)
+        if not self._config_fingerprint:
+            self._config_fingerprint = self._fingerprint_config()
+
         # Determine chapter count
         years_covered = temporal_summary.get("years_covered", 1)
         min_chapters = max(2, years_covered // 5)
         max_chapters = min(self.config.max_chapters, max(5, years_covered // 2))
 
+        prompt = CHAPTER_DETECTION_USER_PROMPT.format(
+            temporal_summary=summary_str,
+            sample_items=items_str,
+            min_chapters=min_chapters,
+            max_chapters=max_chapters,
+        )
+        
         # Prepare multimodal contents
         contents = [prompt]
         
         # Add a few representative images from across the collection to anchor the detection
-        vision_parts = self._get_vision_parts(items, max_images=5)
+        vision_parts = self._get_vision_parts(items, max_images=max_vision_images)
         contents.extend(vision_parts)
 
         logger.debug(f"Detecting chapters (prompt tokens: ~{len(prompt) // 4}, images: {len(vision_parts)})")
 
         try:
+            cache_key = self.cache.build_cache_key(self._media_fingerprint, self._config_fingerprint, "chapters")
             result = self.client.generate_json(
-                prompt=contents if len(contents) > 1 else prompt,
+                contents=contents if len(contents) > 1 else prompt,
                 system_instruction=CHAPTER_DETECTION_SYSTEM_PROMPT,
+                operation="chapter_detection",
+                cache=self.cache,
+                cache_key=cache_key,
             )
 
             return self._parse_chapters(result, items)
@@ -630,14 +668,22 @@ class LifeStoryAnalyzer:
         if not isinstance(ai_result, list):
             ai_result = [ai_result]
 
-        for idx, chapter_data in enumerate(ai_result):
+        raw_chapters = ai_result # Renamed for clarity
+
+        for chapter_data in raw_chapters:
             try:
+                chapter = LifeChapter.model_validate(chapter_data)
+                # Map 'reasoning' to 'discovery_evidence' if present
+                if "reasoning" in chapter_data:
+                    chapter.discovery_evidence = chapter_data["reasoning"]
+                chapters.append(chapter)
+
                 # Parse dates
                 start_date = self._parse_date(chapter_data.get("start_date", ""))
                 end_date = self._parse_date(chapter_data.get("end_date", ""))
 
                 if not start_date or not end_date:
-                    logger.warning(f"Invalid dates in chapter {idx}, skipping")
+                    logger.warning(f"Invalid dates in chapter {chapter.title}, skipping")
                     continue
 
                 # Parse confidence
@@ -816,12 +862,25 @@ class LifeStoryAnalyzer:
 
                 # Prepare multimodal content for narrative
                 contents = [prompt]
-                vision_parts = self._get_vision_parts(chapter_items, max_images=3)
+                
+                # Determine max images based on depth
+                max_narrative_images = 3 # Default standard
+                if self.config.analysis_depth == AnalysisDepth.QUICK:
+                    max_narrative_images = 1
+                elif self.config.analysis_depth == AnalysisDepth.DEEP:
+                    max_narrative_images = 8
+
+                vision_parts = self._get_vision_parts(chapter_items, max_images=max_narrative_images)
                 contents.extend(vision_parts)
 
+                cache_key = self.cache.build_cache_key(self._media_fingerprint, self._config_fingerprint, f"narrative_{chapter.id}")
                 result = self.client.generate_json(
-                    prompt=contents if len(contents) > 1 else prompt,
+                    contents=contents if len(contents) > 1 else prompt,
                     system_instruction=NARRATIVE_SYSTEM_PROMPT,
+                    operation="chapter_narrative",
+                    cache=self.cache,
+                    cache_key=cache_key,
+                    model_name=self.config.vision_model_name,
                 )
 
                 # Update chapter with narrative
@@ -986,10 +1045,16 @@ class LifeStoryAnalyzer:
             statistics=json.dumps(statistics, indent=2),
             platform_insights=json.dumps(platform_text, indent=2),
         )
+        msg = f"Generating executive summary (~{estimate_tokens(prompt)} tokens)"
+        logger.debug(msg)
 
+        cache_key = self.cache.build_cache_key(self._media_fingerprint, self._config_fingerprint, "executive_summary")
         response = self.client.generate(
             contents=prompt,
             system_instruction=EXECUTIVE_SUMMARY_SYSTEM_PROMPT,
+            operation="executive_summary",
+            cache=self.cache,
+            cache_key=cache_key,
         )
 
         return response.text
@@ -1095,6 +1160,37 @@ class LifeStoryAnalyzer:
     # =========================================================================
     # Sampling and Utilities
     # =========================================================================
+
+    def _fingerprint_media_set(self, items: list[MediaItem]) -> str:
+        """Create a deterministic fingerprint of the media collection."""
+        if not items:
+            return hashlib.sha256(b"empty-media-set").hexdigest()
+        
+        # Build list of tuples for each item for stable hashing
+        item_data = []
+        for item in items:
+            ts = item.timestamp.isoformat() if item.timestamp else ""
+            plat = item.source_platform.value if item.source_platform else ""
+            # Use filename as a proxy for content if path is available
+            cid = item.file_path.name if item.file_path else str(item.id)
+            item_data.append(f"{ts}:{plat}:{cid}")
+            
+        item_data.sort()
+        combined = "|".join(item_data)
+        return hashlib.sha256(combined.encode("utf-8")).hexdigest()
+
+    def _fingerprint_config(self) -> str:
+        """Create a deterministic fingerprint of the analysis configuration."""
+        config_dict = {
+            "min_chapters": self.config.min_chapters,
+            "max_chapters": self.config.max_chapters,
+            "narrative_style": self.config.narrative_style,
+            "include_platform_analysis": self.config.include_platform_analysis,
+            "include_gap_analysis": self.config.include_gap_analysis,
+            "privacy_mode": self.privacy.local_only_mode,
+        }
+        json_str = json.dumps(config_dict, sort_keys=True)
+        return hashlib.sha256(json_str.encode("utf-8")).hexdigest()
 
     def _get_vision_parts(self, items: list[MediaItem], max_images: int = 3) -> list[types.Part]:
         """Get visual parts (images) for multimodal analysis.

@@ -44,7 +44,7 @@ from organizer.config import (
     get_config,
 )
 from organizer.detection import DetectionResult, detect_export_source
-from organizer.models import AnalysisConfig, MediaItem, SourcePlatform
+from organizer.models import AnalysisConfig, AnalysisDepth, MediaItem, SourcePlatform
 from organizer.parsers import parse_all_sources
 from organizer.report import ReportFormat, generate_report
 
@@ -220,6 +220,19 @@ def cli(ctx: click.Context, verbose: bool, config: str | None) -> None:
     default=None,
     help="Override maximum chapters to detect",
 )
+@click.option(
+    "--depth",
+    "-d",
+    type=click.Choice(["quick", "standard", "deep"]),
+    default="standard",
+    help="Depth of visual analysis (impacts cost/quality)",
+)
+@click.option(
+    "--vision-model",
+    type=str,
+    default=None,
+    help="Explicit model for vision tasks (e.g. gemini-2.0-flash-exp)",
+)
 @click.pass_context
 def analyze(
     ctx: click.Context,
@@ -229,6 +242,8 @@ def analyze(
     no_ai: bool,
     privacy_mode: bool,
     max_chapters: int | None,
+    depth: str,
+    vision_model: str | None,
 ) -> None:
     """Analyze media exports and generate your life story.
 
@@ -323,7 +338,12 @@ def analyze(
                 # Parse this source
                 results = parse_all_sources(
                     [detection.root_path],
-                    config=AnalysisConfig(),
+                    config=AnalysisConfig(
+                        max_chapters=max_chapters or 20,
+                        privacy_mode=privacy_mode,
+                        analysis_depth=AnalysisDepth(depth),
+                        vision_model_name=vision_model,
+                    ),
                 )
 
                 for res in results:
@@ -363,7 +383,10 @@ def analyze(
         privacy_settings.truncate_captions = 50
         privacy_settings.hash_people_names = True
 
-    analysis_config = AnalysisConfig()
+    analysis_config = AnalysisConfig(
+        analysis_depth=AnalysisDepth(depth),
+        vision_model_name=vision_model,
+    )
     if max_chapters:
         analysis_config.max_chapters = max_chapters
 

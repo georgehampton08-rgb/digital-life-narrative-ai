@@ -587,11 +587,52 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             gap: 1.5rem;
         }
 
+        }
+        
+        /* Discovery Clues in Chapters */
+        .discovery-clues {
+            background: var(--bg-tertiary);
+            border-radius: 12px;
+            padding: 1.25rem;
+            margin: 1.5rem 0;
+            border-left: 4px solid var(--accent-light);
+            font-size: 0.9rem;
+        }
+        
+        .discovery-clues h4 {
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--accent);
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .discovery-clues p {
+            margin: 0;
+            color: var(--text-secondary);
+            font-style: italic;
+        }
+
         .insight-card {
             background: var(--bg-secondary);
             border-radius: 12px;
             padding: 1.5rem;
             box-shadow: var(--shadow);
+        }
+
+        .usage-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.4rem 1rem;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 99px;
+            font-size: 0.85rem;
+            margin-top: 1rem;
         }
 
         .insight-card h3 {
@@ -756,6 +797,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 {% endif %}
                 · {{ pluralize(report.total_media_analyzed, 'memory', 'memories') }}
             </p>
+            {% if report.usage_metrics %}
+            <div class="usage-badge animate-in">
+                <span>⚡ AI Efficiency: <strong>{{ (report.usage_metrics.total_tokens / 1000) | round(1) }}k tokens</strong></span>
+                <span>· Est. Cost: <strong>${{ report.usage_metrics.total_estimated_cost_usd | round(4) }}</strong></span>
+            </div>
+            {% endif %}
         </div>
     </header>
 
@@ -839,13 +886,20 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     </div>
                 </div>
                 <div class="chapter-narrative">
-                    {{ chapter.narrative | safe | markdown }}
-                </div>
+                {{ chapter.narrative | safe | markdown }}
+            </div>
 
-                {% if chapter.representative_media_ids and media_lookup %}
+            {% if chapter.discovery_evidence %}
+            <div class="discovery-clues">
+                <h4>🔍 Discovery Clues</h4>
+                <p>{{ chapter.discovery_evidence }}</p>
+            </div>
+            {% endif %}
+
+            {% if chapter.representative_media_ids and items_map %}
                 <div class="chapter-media">
                     {% for media_id in chapter.representative_media_ids[:4] %}
-                    {% set item = media_lookup.get(media_id) %}
+                    {% set item = items_map.get(media_id) %}
                     {% if item and item.file_path %}
                     <div class="media-preview">
                         <img src="{{ item.file_path | file_uri }}" alt="Snapshot from {{ chapter.title }}" loading="lazy">
@@ -1033,7 +1087,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     </script>
 </body>
 </html>"""
-
 
 # =============================================================================
 # Report Generator
@@ -1260,33 +1313,28 @@ class ReportGenerator:
         Returns:
             Context dictionary for template.
         """
-        # Create media lookup if items provided
-        media_lookup = {str(item.id): item for item in items} if items else {}
-        # Determine title
-        if report.is_fallback_mode:
-            title = "Your Life Story (Preview)"
-            subtitle = "Statistical overview of your media collection"
-        else:
-            title = "Your Life Story"
-            subtitle = "An AI-powered narrative of your journey"
+        # Create items map for quick lookups
+        items_map = {str(item.id): item for item in items} if items else {}
 
-        # Count unique platforms from chapters or calculate
-        platforms_count = (
-            len(set(insight.platform.value for insight in report.platform_insights))
-            if report.platform_insights
-            else 1
-        )
+        # Stats
+        total_media = len(items) if items else report.total_media_analyzed
+        platforms_count = len(set(item.source_platform for item in items)) if items else 0
 
+        # Usage summary for header
+        usage = report.usage_metrics or {}
+        
         return {
+            "title": "Your Life Story",
+            "subtitle": "A narrative journey through your digital archives",
             "report": report,
-            "title": title,
-            "subtitle": subtitle,
+            "items_map": items_map,
             "platforms_count": platforms_count,
+            "now": datetime.now(),
+            "usage": usage,
             "chapter_colors": self.CHAPTER_COLORS,
             "platform_icons": self.PLATFORM_ICONS,
             "format_date_range": format_date_range,
             "pluralize": pluralize,
-            "media_lookup": media_lookup,
         }
 
 
