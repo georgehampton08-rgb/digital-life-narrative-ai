@@ -320,16 +320,17 @@ def analyze(
                 get_config()
 
                 # Parse this source
-                result = parse_all_sources(
+                results = parse_all_sources(
                     [detection.root_path],
                     config=AnalysisConfig(),
                 )
 
-                all_items.extend(result.items)
+                for res in results:
+                    all_items.extend(res.items)
 
-                if result.parse_errors:
-                    for error in result.parse_errors[:3]:
-                        print_warning(f"  {error}")
+                    if res.parse_errors:
+                        for error in res.parse_errors[:3]:
+                            print_warning(f"  {error}")
 
             except Exception as e:
                 # Escape path for Rich markup (paths with [...] are interpreted as tags)

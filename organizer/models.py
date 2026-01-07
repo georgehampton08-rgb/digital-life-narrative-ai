@@ -9,7 +9,7 @@ from datetime import date, datetime
 from enum import Enum
 from pathlib import Path
 from typing import Any
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -40,6 +40,7 @@ class MediaType(str, Enum):
     STORY = "story"
     MESSAGE = "message"
     CHECK_IN = "check_in"
+    SCREENSHOT = "screenshot"
     UNKNOWN = "unknown"
 
 
@@ -163,7 +164,7 @@ class MediaItem(BaseModel):
         file_hash: Hash for deduplication (MD5 or SHA256)
     """
 
-    id: str = Field(default_factory=lambda: str(uuid4()))
+    id: str | UUID = Field(default_factory=lambda: str(uuid4()))
     source_platform: SourcePlatform
     media_type: MediaType
     file_path: Path | None = None

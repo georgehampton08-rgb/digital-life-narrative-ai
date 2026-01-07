@@ -775,15 +775,15 @@ def get_parser_for_platform(platform: SourcePlatform) -> type[BaseParser] | None
         from organizer.parsers.google_photos import GooglePhotosParser
         from organizer.parsers.facebook import FacebookParser
         from organizer.parsers.instagram import InstagramParser
-        from organizer.parsers.local import LocalMediaParser
+        from organizer.parsers.local import LocalPhotosParser
 
         parser_map: dict[SourcePlatform, type[BaseParser]] = {
             SourcePlatform.SNAPCHAT: SnapchatParser,
             SourcePlatform.GOOGLE_PHOTOS: GooglePhotosParser,
             SourcePlatform.FACEBOOK: FacebookParser,
             SourcePlatform.INSTAGRAM: InstagramParser,
-            SourcePlatform.LOCAL: LocalMediaParser,
-            SourcePlatform.ONEDRIVE: LocalMediaParser,  # OneDrive uses local parser
+            SourcePlatform.LOCAL: LocalPhotosParser,
+            SourcePlatform.ONEDRIVE: LocalPhotosParser,  # OneDrive uses local parser
         }
 
         return parser_map.get(platform)

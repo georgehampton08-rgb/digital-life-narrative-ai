@@ -186,13 +186,32 @@ class BaseParser(ABC):
     # Helper Methods
     # =========================================================================
 
-    def _generate_item_id(self) -> str:
-        """Generate a unique ID for a media item.
+    def _generate_item_id(
+        self,
+        file_path: Path | None = None,
+        platform_name: str | None = None,
+    ) -> uuid.UUID:
+        """Generate a deterministic UUID for a media item.
+
+        Uses namespace UUID based on platform and file path/hash.
+        If arguments not provided, returns a random UUID.
+
+        Args:
+            file_path: Optional path to the media file.
+            platform_name: Optional name of the platform.
 
         Returns:
-            New UUID string.
+            UUID object.
         """
-        return str(uuid4())
+        import uuid
+
+        if file_path and platform_name:
+            # Create a stable string for hashing
+            # Using filename and parent folder name is usually enough for single-source stability
+            stable_name = f"{platform_name}:{file_path.parent.name}/{file_path.name}"
+            return uuid.uuid5(uuid.NAMESPACE_DNS, stable_name)
+
+        return uuid.uuid4()
 
     def _extract_exif_datetime(self, image_path: Path) -> datetime | None:
         """Extract datetime from image EXIF data.
@@ -210,6 +229,11 @@ class BaseParser(ABC):
             with Image.open(image_path) as img:
                 exif_data = img._getexif()
                 if not exif_data:
+                    return None
+
+                # Ensure exif_data is a dictionary
+                if not isinstance(exif_data, dict):
+                    logger.debug(f"EXIF data is not a dict for {image_path}")
                     return None
 
                 # Map tag IDs to names
@@ -495,16 +519,17 @@ class ParserRegistry:
     Provides dynamic lookup and registration of platform parsers.
     Use as a decorator or call register() directly.
 
-    Example:
-        ```python
-        @ParserRegistry.register
-        class SnapchatParser(BaseParser):
-            platform = SourcePlatform.SNAPCHAT
-            ...
-        ```
+    Uses a singleton pattern to ensure all parsers are registered
+    in a single location.
     """
 
+    _instance = None
     _parsers: dict[SourcePlatform, type[BaseParser]] = {}
+
+    def __new__(cls) -> ParserRegistry:
+        if cls._instance is None:
+            cls._instance = super(ParserRegistry, cls).__new__(cls)
+        return cls._instance
 
     @classmethod
     def register(
@@ -605,6 +630,7 @@ def parse_all_sources(
     Returns:
         List of ParseResult for all successfully parsed sources.
     """
+    import organizer.parsers  # noqa: F401
     from organizer.detection import detect_export_source
 
     results: list[ParseResult] = []

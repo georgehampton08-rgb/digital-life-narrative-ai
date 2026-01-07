@@ -43,23 +43,39 @@ logger = logging.getLogger(__name__)
 # Supported media extensions
 IMAGE_EXTENSIONS = frozenset(
     {
+        # Standard Images
         ".jpg",
         ".jpeg",
         ".png",
         ".gif",
-        ".webp",
         ".heic",
         ".heif",
-        ".bmp",
+        ".webp",
         ".tiff",
         ".tif",
-        # RAW formats
-        ".cr2",
+        ".bmp",
+        # RAW formats - Nikon
         ".nef",
+        ".nrw",
+        # RAW formats - Canon
+        ".cr2",
+        ".cr3",
+        ".crw",
+        # RAW formats - Sony
         ".arw",
-        ".dng",
+        ".srf",
+        ".sr2",
+        # RAW formats - Fuji
+        ".raf",
+        # RAW formats - Olympus
         ".orf",
+        # RAW formats - Panasonic
         ".rw2",
+        # RAW formats - Pentax
+        ".pef",
+        ".ptx",
+        # RAW formats - Generic/Adobe
+        ".dng",
         ".raw",
     }
 )
@@ -184,35 +200,15 @@ class LocalPhotosParser(BaseParser):
     def can_parse(self, root_path: Path) -> bool:
         """Check if directory contains parseable media files.
 
-        This is a fallback parser, so it can parse any directory
-        with media files.
+        This is a fallback parser, so it can parse any directory.
 
         Args:
             root_path: Path to check.
 
         Returns:
-            True if directory contains media files.
+            True (fallback parser).
         """
-        if not root_path.exists() or not root_path.is_dir():
-            return False
-
-        # Quick check for any media files
-        try:
-            for item in root_path.iterdir():
-                if item.is_file():
-                    if item.suffix.lower() in self.supported_extensions:
-                        return True
-                elif item.is_dir() and not item.name.startswith("."):
-                    # Check one level deep
-                    for subitem in item.iterdir():
-                        if subitem.is_file():
-                            if subitem.suffix.lower() in self.supported_extensions:
-                                return True
-                        break  # Only check first item in subdir
-        except PermissionError:
-            pass
-
-        return False
+        return True
 
     def parse(
         self,
@@ -581,6 +577,13 @@ class LocalPhotosParser(BaseParser):
                 if not exif_data:
                     return result
 
+                # Ensure exif_data is a dictionary (some files return unexpected types)
+                if not isinstance(exif_data, dict):
+                    logger.debug(
+                        f"EXIF data is not a dict for {image_path}, type: {type(exif_data)}"
+                    )
+                    return result
+
                 # Map numeric tags to names
                 raw_exif: dict[str, Any] = {}
                 for tag_id, value in exif_data.items():
@@ -644,6 +647,11 @@ class LocalPhotosParser(BaseParser):
             GeoLocation or None if parsing fails.
         """
         try:
+            # Ensure gps_info is a dictionary (can be a list in some RAW files)
+            if not isinstance(gps_info, dict):
+                logger.debug(f"GPS info is not a dict, type: {type(gps_info)}")
+                return None
+
             # Decode GPS tags if needed
             decoded_gps: dict[str, Any] = {}
             for tag_id, value in gps_info.items():

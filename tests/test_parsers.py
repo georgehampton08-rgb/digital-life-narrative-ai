@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 from organizer.models import SourcePlatform
-from organizer.parsers.base import BaseParser, ParserRegistry, parse_all_sources
+from organizer.parsers import BaseParser, ParserRegistry, parse_all_sources
 
 # =============================================================================
 # ParserRegistry Tests
@@ -351,7 +351,11 @@ class TestParseAllSources:
         )
 
         # Should have items from both sources
-        platforms = {item.source_platform for item in result.items}
+        all_items = []
+        for r in result:
+            all_items.extend(r.items)
+            
+        platforms = {item.source_platform for item in all_items}
         assert len(platforms) >= 1  # At least one platform
 
     def test_handles_empty_sources(self, tmp_path: Path) -> None:

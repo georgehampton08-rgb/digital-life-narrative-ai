@@ -29,17 +29,14 @@ from src.detection import (
 )
 
 # Parser Infrastructure
-from src.parsers.base import (
+from organizer.parsers import (
     BaseParser,
     ParseResult,
     ParserRegistry,
-    ParseStatus,
 )
-from src.parsers.google_photos import GooglePhotosParser
-from src.parsers.local_files import LocalFilesParser
-
-# Concrete Parsers
-from src.parsers.snapchat import SnapchatParser
+from organizer.parsers.google_photos import GooglePhotosParser
+from organizer.parsers.local import LocalPhotosParser
+from organizer.parsers.snapchat import SnapchatParser
 
 # =============================================================================
 # Detection Tests
