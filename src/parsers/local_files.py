@@ -154,14 +154,13 @@ class LocalFilesParser(BaseParser):
         warnings: List[ParseWarning] = []
         errors: List[ParseError] = []
         
-        def report_progress(message: str, current: int = 0, total: int = 0):
+        def report_progress(stage: str, current: int = 0, total: int = 0):
             """Helper to report progress if callback provided."""
             if progress:
                 progress(ParseProgress(
-                    message=message,
                     current=current,
                     total=total,
-                    platform=SourcePlatform.LOCAL
+                    stage=stage
                 ))
         
         report_progress("Scanning local media directory...")
@@ -188,9 +187,10 @@ class LocalFilesParser(BaseParser):
             except Exception as e:
                 logger.warning(f"Error processing {file_path}: {e}", exc_info=True)
                 errors.append(ParseError(
+                    file_path=file_path,
                     message=f"Failed to process file: {e}",
-                    file_path=str(file_path),
-                    exception=e
+                    error_type="file_parse_error",
+                    original_exception=e
                 ))
         
         # Build result
@@ -204,12 +204,9 @@ class LocalFilesParser(BaseParser):
             memories=memories,
             warnings=warnings,
             errors=errors,
-            statistics={
-                "total_memories": len(memories),
-                "total_files_scanned": total_files,
-                "warnings_count": len(warnings),
-                "errors_count": len(errors)
-            }
+            files_processed=total_files,
+            root_path=root,
+            parser_version=self.version
         )
         
         report_progress(f"Completed: {len(memories)} memories extracted",

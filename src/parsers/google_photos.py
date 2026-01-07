@@ -145,14 +145,13 @@ class GooglePhotosParser(BaseParser):
         warnings: List[ParseWarning] = []
         errors: List[ParseError] = []
         
-        def report_progress(message: str, current: int = 0, total: int = 0):
+        def report_progress(stage: str, current: int = 0, total: int = 0):
             """Helper to report progress if callback provided."""
             if progress:
                 progress(ParseProgress(
-                    message=message,
                     current=current,
                     total=total,
-                    platform=SourcePlatform.GOOGLE_PHOTOS
+                    stage=stage
                 ))
         
         report_progress("Scanning Google Photos export...")
@@ -162,8 +161,9 @@ class GooglePhotosParser(BaseParser):
         photos_root = self._find_google_photos_root(root)
         if not photos_root:
             error = ParseError(
+                file_path=root,
                 message="Could not find Google Photos directory",
-                file_path=str(root)
+                error_type="directory_not_found"
             )
             errors.append(error)
             return ParseResult(
@@ -208,9 +208,10 @@ class GooglePhotosParser(BaseParser):
             except Exception as e:
                 logger.warning(f"Error processing {media_path}: {e}", exc_info=True)
                 errors.append(ParseError(
+                    file_path=media_path,
                     message=f"Failed to process media file: {e}",
-                    file_path=str(media_path),
-                    exception=e
+                    error_type="media_parse_error",
+                    original_exception=e
                 ))
         
         # Post-processing: Detect Live Photos
@@ -236,13 +237,9 @@ class GooglePhotosParser(BaseParser):
             memories=unique_memories,
             warnings=warnings,
             errors=errors,
-            statistics={
-                "total_memories": len(unique_memories),
-                "total_files_scanned": total_files,
-                "duplicates_removed": duplicates_removed,
-                "warnings_count": len(warnings),
-                "errors_count": len(errors)
-            }
+            files_processed=total_files,
+            root_path=photos_root,
+            parser_version=self.version
         )
         
         report_progress(f"Completed: {len(unique_memories)} memories extracted",

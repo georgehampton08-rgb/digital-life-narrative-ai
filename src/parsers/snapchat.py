@@ -143,14 +143,13 @@ class SnapchatParser(BaseParser):
         warnings: List[ParseWarning] = []
         errors: List[ParseError] = []
         
-        def report_progress(message: str, current: int = 0, total: int = 0):
+        def report_progress(stage: str, current: int = 0, total: int = 0):
             """Helper to report progress if callback provided."""
             if progress:
                 progress(ParseProgress(
-                    message=message,
                     current=current,
                     total=total,
-                    platform=SourcePlatform.SNAPCHAT
+                    stage=stage
                 ))
         
         report_progress("Scanning Snapchat export...")
@@ -179,9 +178,10 @@ class SnapchatParser(BaseParser):
                 logger.info(f"Parsed {len(memory_list)} memories from memories_history.json")
             except Exception as e:
                 errors.append(ParseError(
+                    file_path=memories_file,
                     message=f"Failed to parse memories_history.json: {e}",
-                    file_path=str(memories_file),
-                    exception=e
+                    error_type="json_parse_error",
+                    original_exception=e
                 ))
         
         # Parse chat history
@@ -194,9 +194,10 @@ class SnapchatParser(BaseParser):
                 logger.info(f"Parsed {len(chat_memories)} chat memories")
             except Exception as e:
                 errors.append(ParseError(
+                    file_path=chat_dir,
                     message=f"Failed to parse chat_history: {e}",
-                    file_path=str(chat_dir),
-                    exception=e
+                    error_type="directory_parse_error",
+                    original_exception=e
                 ))
         
         # Parse snap history
@@ -209,9 +210,10 @@ class SnapchatParser(BaseParser):
                 logger.info(f"Parsed {len(snap_memories)} snap history entries")
             except Exception as e:
                 errors.append(ParseError(
+                    file_path=snap_file,
                     message=f"Failed to parse snap_history.json: {e}",
-                    file_path=str(snap_file),
-                    exception=e
+                    error_type="json_parse_error",
+                    original_exception=e
                 ))
         
         # Enrich memories with location data
@@ -250,13 +252,9 @@ class SnapchatParser(BaseParser):
             memories=unique_memories,
             warnings=warnings,
             errors=errors,
-            statistics={
-                "total_memories": len(unique_memories),
-                "duplicates_removed": duplicates_removed,
-                "location_points": len(location_lookup),
-                "warnings_count": len(warnings),
-                "errors_count": len(errors)
-            }
+            files_processed=len(unique_memories) + duplicates_removed,
+            root_path=root,
+            parser_version=self.version
         )
         
         report_progress(f"Completed: {len(unique_memories)} memories extracted", 

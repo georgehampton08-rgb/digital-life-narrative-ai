@@ -29,7 +29,9 @@ except ImportError:
 
 from src.ai.client import AIClient, AIClientError
 from src.ai.disclosure import check_and_prompt_disclosure
-from src.config import PrivacySettings, get_config
+from src.config import get_config
+from src.core.memory import Memory, MediaType, SourcePlatform
+from src.core.privacy import PrivacySettings
 from src.core.memory import Memory, MediaType, SourcePlatform
 from src.core.safety import (
     SENSITIVE_FILENAME_PATTERNS,

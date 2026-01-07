@@ -279,11 +279,13 @@ def snapchat_export_dir(tmp_path: Path) -> Path:
         "email": "test@example.com"
     })
     
-    create_test_json(export_path / "memories_history.json", [
-        {"Date": "2019-06-15 14:30:22 UTC", "Media Type": "PHOTO", "Location": "37.7749, -122.4194"},
-        {"Date": "2020-01-01 12:00:00 UTC", "Media Type": "PHOTO"},
-        {"Date": "2021-03-15 09:30:00 UTC", "Media Type": "VIDEO"}
-    ])
+    create_test_json(export_path / "memories_history.json", {
+        "Saved Media": [
+            {"Date": "2019-06-15 14:30:22 UTC", "Media Type": "PHOTO", "Location": "37.7749, -122.4194"},
+            {"Date": "2020-01-01 12:00:00 UTC", "Media Type": "PHOTO"},
+            {"Date": "2021-03-15 09:30:00 UTC", "Media Type": "VIDEO"}
+        ]
+    })
     
     mem_dir = export_path / "memories"
     mem_dir.mkdir()
