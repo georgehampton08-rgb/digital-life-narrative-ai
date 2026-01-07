@@ -9,6 +9,12 @@ Submodules:
     file_utils: File system operations (planned)
 """
 
+from organizer.utils.archive_extraction import (
+    ArchiveExtractionError,
+    detect_archives_in_directory,
+    extract_archive,
+    is_multi_part_archive,
+)
 from organizer.utils.hashing import (
     compute_content_hash,
     compute_file_hash,
@@ -41,4 +47,9 @@ __all__ = [
     "find_duplicates",
     "find_duplicates_quick",
     "deduplicate_items",
+    # Archive extraction
+    "extract_archive",
+    "detect_archives_in_directory",
+    "is_multi_part_archive",
+    "ArchiveExtractionError",
 ]

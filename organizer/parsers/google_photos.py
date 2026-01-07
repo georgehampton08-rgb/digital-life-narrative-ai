@@ -33,6 +33,11 @@ from organizer.models import (
     SourcePlatform,
 )
 from organizer.parsers.base import BaseParser, ParserRegistry
+from organizer.utils.archive_extraction import (
+    ArchiveExtractionError,
+    detect_archives_in_directory,
+    extract_archive,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -140,20 +145,33 @@ class GooglePhotosParser(BaseParser):
         """Initialize the Google Photos parser."""
         super().__init__()
         self._processed_hashes: set[str] = set()
+        self._temp_extract_dir: Path | None = None
 
     def can_parse(self, root_path: Path) -> bool:
         """Check if this parser can handle the given path.
 
-        Looks for Google Photos-specific structure.
+        Looks for Google Photos-specific structure or Google Takeout ZIP files.
 
         Args:
-            root_path: Path to check.
+            root_path: Path to check (can be directory or ZIP file).
 
         Returns:
             True if Google Photos export detected.
         """
-        if not root_path.exists() or not root_path.is_dir():
+        if not root_path.exists():
             return False
+
+        # If it's a ZIP file, check if it's a Takeout archive
+        if root_path.is_file() and root_path.suffix.lower() == ".zip":
+            return "takeout" in root_path.name.lower()
+
+        if not root_path.is_dir():
+            return False
+
+        # Check for Takeout ZIP files in directory
+        takeout_zips = detect_archives_in_directory(root_path)
+        if any("takeout" in z.name.lower() for z in takeout_zips):
+            return True
 
         # Check for "Google Photos" folder
         google_photos_dir = root_path / "Google Photos"
@@ -179,8 +197,10 @@ class GooglePhotosParser(BaseParser):
     ) -> ParseResult:
         """Parse Google Photos export and extract all media items.
 
+        Automatically extracts ZIP archives if needed.
+
         Args:
-            root_path: Root directory of the Google Photos export.
+            root_path: Root directory or ZIP file of the Google Photos export.
             progress_callback: Optional callback for progress updates.
 
         Returns:
@@ -195,51 +215,60 @@ class GooglePhotosParser(BaseParser):
         self._errors = []
         self._stats = {"total_files": 0, "parsed": 0, "skipped": 0, "errors": 0}
         self._processed_hashes = set()
+        self._temp_extract_dir = None
 
-        # Find the actual Google Photos directory
-        photos_root = self._find_photos_root(root_path)
-        if not photos_root:
-            logger.warning("Could not find Google Photos directory")
-            return self._create_parse_result([], time.time() - start_time)
+        try:
+            # Handle ZIP extraction if needed
+            parse_path = self._prepare_path(root_path)
 
-        logger.debug(f"Using photos root: {photos_root}")
+            # Find the actual Google Photos directory
+            photos_root = self._find_photos_root(parse_path)
+            if not photos_root:
+                logger.warning("Could not find Google Photos directory")
+                return self._create_parse_result([], time.time() - start_time)
 
-        # Collect all media files
-        media_files = self._collect_media_files(photos_root)
-        total_files = len(media_files)
-        self._stats["total_files"] = total_files
+            logger.debug(f"Using photos root: {photos_root}")
 
-        logger.info(f"Found {total_files} media files to process")
+            # Collect all media files
+            media_files = self._collect_media_files(photos_root)
+            total_files = len(media_files)
+            self._stats["total_files"] = total_files
 
-        # Process each media file
-        for idx, media_path in enumerate(media_files):
-            try:
-                item = self._process_media_file(media_path, photos_root)
-                if item:
-                    # Deduplication check
-                    if item.file_hash and item.file_hash in self._processed_hashes:
-                        self._stats["skipped"] += 1
-                        logger.debug(f"Skipping duplicate: {media_path.name}")
-                        continue
+            logger.info(f"Found {total_files} media files to process")
 
-                    if item.file_hash:
-                        self._processed_hashes.add(item.file_hash)
+            # Process each media file
+            for idx, media_path in enumerate(media_files):
+                try:
+                    item = self._process_media_file(media_path, photos_root)
+                    if item:
+                        # Deduplication check
+                        if item.file_hash and item.file_hash in self._processed_hashes:
+                            self._stats["skipped"] += 1
+                            logger.debug(f"Skipping duplicate: {media_path.name}")
+                            continue
 
-                    all_items.append(item)
+                        if item.file_hash:
+                            self._processed_hashes.add(item.file_hash)
 
-                if progress_callback and idx % 50 == 0:
-                    progress_callback(idx + 1, total_files)
+                        all_items.append(item)
 
-            except Exception as e:
-                self._log_error(f"Failed to process: {e}", media_path)
+                    if progress_callback and idx % 50 == 0:
+                        progress_callback(idx + 1, total_files)
 
-        if progress_callback:
-            progress_callback(total_files, total_files)
+                except Exception as e:
+                    self._log_error(f"Failed to process: {e}", media_path)
 
-        duration = time.time() - start_time
-        logger.info(f"Google Photos parse complete: {len(all_items)} items in {duration:.2f}s")
+            if progress_callback:
+                progress_callback(total_files, total_files)
 
-        return self._create_parse_result(all_items, duration)
+            duration = time.time() - start_time
+            logger.info(f"Google Photos parse complete: {len(all_items)} items in {duration:.2f}s")
+
+            return self._create_parse_result(all_items, duration)
+
+        finally:
+            # Clean up temporary extraction directory
+            self._cleanup_temp_dir()
 
     # =========================================================================
     # Private Methods
@@ -284,6 +313,55 @@ class GooglePhotosParser(BaseParser):
                 return root_path
 
         return root_path  # Use root as fallback
+
+    def _prepare_path(self, root_path: Path) -> Path:
+        """Prepare path for parsing, extracting ZIP files if needed.
+
+        Args:
+            root_path: Input path (directory or ZIP file).
+
+        Returns:
+            Path to parse (extracted directory if ZIP).
+
+        Raises:
+            ArchiveExtractionError: If ZIP extraction fails.
+        """
+        # If it's an already-extracted directory, use as-is
+        if root_path.is_dir():
+            # Check if directory contains Takeout ZIPs
+            takeout_zips = detect_archives_in_directory(root_path)
+            if not any("takeout" in z.name.lower() for z in takeout_zips):
+                # No ZIPs, use directory directly
+                return root_path
+
+            # Extract first Takeout archive found
+            if takeout_zips:
+                first_zip = next(z for z in takeout_zips if "takeout" in z.name.lower())
+                logger.info(f"Extracting Google Takeout archive: {first_zip.name}")
+                self._temp_extract_dir = extract_archive(first_zip)
+                return self._temp_extract_dir
+
+        # If it's a ZIP file, extract it
+        if root_path.is_file() and root_path.suffix.lower() == ".zip":
+            logger.info(f"Extracting Google Takeout archive: {root_path.name}")
+            self._temp_extract_dir = extract_archive(root_path)
+            return self._temp_extract_dir
+
+        return root_path
+
+    def _cleanup_temp_dir(self) -> None:
+        """Clean up temporary extraction directory if created."""
+        if self._temp_extract_dir and self._temp_extract_dir.exists():
+            try:
+                import shutil
+
+                logger.debug(f"Cleaning up temporary directory: {self._temp_extract_dir}")
+                shutil.rmtree(self._temp_extract_dir, ignore_errors=True)
+                self._temp_extract_dir = None
+            except Exception as e:
+                logger.warning(f"Failed to clean up temp directory: {e}")
+
+
 
     def _collect_media_files(self, photos_root: Path) -> list[Path]:
         """Collect all media files from the export.
