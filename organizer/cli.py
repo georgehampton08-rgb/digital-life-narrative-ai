@@ -18,6 +18,7 @@ import asyncio
 import logging
 import sys
 import webbrowser
+from enum import Enum
 from pathlib import Path
 from typing import Any
 
@@ -573,11 +574,55 @@ def config_set_key() -> None:
         retrieved = manager.retrieve_key()
         if retrieved:
             print_success("Key verification passed.")
+            
+            # New: Offer immediate API validation
+            console.print()
+            if confirm_action("Would you like to verify the key with a test API call?", default=True):
+                from organizer.ai import get_client, AIClientError
+                
+                with console.status("[bold cyan]Testing API connectivity..."):
+                    try:
+                        client = get_client(api_key=retrieved)
+                        if client.is_available():
+                            print_success("API key is VALID and functional! ✨")
+                        else:
+                            print_error("API key is configured but test call failed.")
+                    except AIClientError as e:
+                        print_error(f"API validation failed: {e}")
+                    except Exception as e:
+                        print_error(f"An unexpected error occurred: {e}")
         else:
             print_warning("Could not verify stored key.")
 
     except Exception as e:
         print_error(f"Failed to store API key: {e}")
+
+
+@config.command("test-key")
+def config_test_key() -> None:
+    """Validate your currently stored API key with a test call.
+    
+    This performs a minimal API request to ensure the key is correctly
+    configured and has the necessary permissions.
+    """
+    print_header("🧪 Testing API Key Validity")
+    
+    from organizer.ai import get_client, AIClientError
+    
+    try:
+        with console.status("[bold cyan]Retrieving stored key..."):
+            client = get_client()
+        
+        with console.status("[bold cyan]Making test API call..."):
+            if client.is_available():
+                print_success(f"API key is VALID! (Model: {client.model_name})")
+            else:
+                print_error("API key is configured but the test call failed (returned False).")
+                
+    except AIClientError as e:
+        print_error(f"API check failed: {e}")
+    except Exception as e:
+        print_error(f"An unexpected error occurred during test: {e}")
 
 
 @config.command("show")
@@ -660,28 +705,23 @@ def config_set(key: str, value: str) -> None:
         # Parse the key path
         parts = key.split(".")
 
-        if len(parts) == 1:
-            # Top-level key
-            if hasattr(app_config, key):
-                setattr(app_config, key, value)
-            else:
-                print_error(f"Unknown setting: {key}")
-                return
-
-        elif len(parts) == 2:
-            # Nested key (e.g., ai.model_name)
+        # Handle configuration sections (e.g., ai.model_name)
+        if len(parts) == 2:
             section, setting = parts
             if hasattr(app_config, section):
                 section_obj = getattr(app_config, section)
                 if hasattr(section_obj, setting):
-                    # Type conversion
+                    # Get current value to determine target type
                     current = getattr(section_obj, setting)
+                    
+                    # Convert value to target type
                     if isinstance(current, bool):
                         value = value.lower() in ("true", "1", "yes")
                     elif isinstance(current, int):
                         value = int(value)
                     elif isinstance(current, float):
                         value = float(value)
+                    
                     setattr(section_obj, setting, value)
                 else:
                     print_error(f"Unknown setting: {key}")
@@ -689,12 +729,40 @@ def config_set(key: str, value: str) -> None:
             else:
                 print_error(f"Unknown section: {section}")
                 return
+        
+        # Handle top-level configuration (e.g., key_storage_backend)
+        elif len(parts) == 1:
+            key = parts[0]
+            if hasattr(app_config, key):
+                current = getattr(app_config, key)
+                
+                # Handle Enum types
+                if isinstance(current, Enum):
+                    try:
+                        enum_type = type(current)
+                        value = enum_type(value)
+                    except ValueError:
+                        valid_values = ", ".join([e.value for e in type(current)])
+                        print_error(f"Invalid value for {key}. Valid options: {valid_values}")
+                        return
+                elif isinstance(current, bool):
+                    value = value.lower() in ("true", "1", "yes")
+                elif isinstance(current, int):
+                    value = int(value)
+                elif isinstance(current, float):
+                    value = float(value)
+                
+                setattr(app_config, key, value)
+            else:
+                print_error(f"Unknown setting: {key}")
+                return
         else:
             print_error(f"Invalid key format: {key}")
             return
 
         # Save config
-        app_config.save_to_yaml()
+        config_path = AppConfig.get_default_config_path()
+        app_config.save_to_yaml(config_path)
         print_success(f"Set {key} = {value}")
 
     except Exception as e:
