@@ -1,432 +1,643 @@
-"""Pytest fixtures for Digital Life Narrative AI tests.
+"""Central Pytest Fixtures for Digital Life Narrative AI.
 
-Shared fixtures for mock data, temp directories, and AI client mocking.
+This module provides reusable test data, mock objects, and temporary directories 
+across all test modules. It ensures consistent test data and keeps tests DRY.
+
+Fixtures included:
+- Core data: sample_memories, sample_life_report, sample_fallback_report
+- Directory structures: snapchat_export_dir, google_photos_export_dir, local_photos_dir
+- AI Mocks: mock_ai_client, mock_ai_client_unavailable, mock_ai_client_rate_limited
+- Safety: sample_safety_settings, memories_with_safety_flags
+- Utilities: temp_output_dir
 """
 
-from __future__ import annotations
-
 import json
+import shutil
 import uuid
+import pytest
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Generator
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, Mock, patch
 
-import pytest
+from PIL import Image, ExifTags
 
-from organizer.models import (
-    AnalysisConfig,
-    Confidence,
+# Core Models
+from src.core.memory import (
+    Memory, 
+    MediaType, 
+    SourcePlatform, 
+    ConfidenceLevel, 
+    Location, 
+    GeoPoint, 
+    PersonTag
+)
+from src.core.timeline import (
+    DateRange, 
+    Timeline, 
+    TimelineGap, 
+    TimelineStatistics
+)
+# AI Models
+from src.ai.life_analyzer import (
+    LifeChapter, 
+    ChapterTheme, 
+    LifeStoryReport, 
+    PlatformBehaviorInsight, 
     DataGap,
-    GeoLocation,
-    LifeChapter,
-    LifeStoryReport,
-    MediaItem,
-    MediaType,
-    ParseResult,
-    PlatformBehaviorInsight,
-    SourcePlatform,
+    AnalysisConfig
+)
+from src.ai.client import (
+    AIResponse, 
+    StructuredAIResponse, 
+    AIUnavailableError, 
+    AIRateLimitError
+)
+# Safety Models
+from src.core.safety import (
+    SafetySettings, 
+    SafetyFlag, 
+    MemorySafetyState, 
+    SafetyCategory, 
+    SafetyAction,
+    SensitivityLevel,
+    DetectionMethod
 )
 
-
 # =============================================================================
-# Sample Data Fixtures
-# =============================================================================
-
-
-@pytest.fixture
-def sample_geo_location() -> GeoLocation:
-    """Sample geo location for testing."""
-    return GeoLocation(
-        latitude=41.8781,
-        longitude=-87.6298,
-        place_name="Chicago",
-        country="USA",
-    )
-
-
-@pytest.fixture
-def sample_media_item(sample_geo_location: GeoLocation) -> MediaItem:
-    """Single sample media item."""
-    return MediaItem(
-        id=uuid.uuid4(),
-        source_platform=SourcePlatform.GOOGLE_PHOTOS,
-        media_type=MediaType.PHOTO,
-        file_path=Path("/photos/2020/vacation.jpg"),
-        timestamp=datetime(2020, 7, 15, 14, 30, 0, tzinfo=timezone.utc),
-        location=sample_geo_location,
-        people=["Alice", "Bob"],
-        caption="Summer vacation in Chicago",
-        original_metadata={"album": "Vacation 2020"},
-        file_hash="abc123def456",
-        file_size_bytes=2048000,
-        timestamp_confidence=Confidence.HIGH,
-    )
-
-
-@pytest.fixture
-def sample_media_items() -> list[MediaItem]:
-    """List of diverse MediaItem objects spanning 3 years, multiple platforms."""
-    items = []
-
-    # Year 1 - 2019 (Snapchat heavy)
-    for i in range(10):
-        items.append(MediaItem(
-            id=uuid.uuid4(),
-            source_platform=SourcePlatform.SNAPCHAT,
-            media_type=MediaType.PHOTO if i % 2 == 0 else MediaType.VIDEO,
-            file_path=Path(f"/snapchat/memories/snap_{i}.jpg"),
-            timestamp=datetime(2019, 3 + i % 10, 10 + i, 12, 0, 0, tzinfo=timezone.utc),
-            caption=f"Snap moment {i}",
-        ))
-
-    # Year 2 - 2020 (Google Photos)
-    for i in range(15):
-        items.append(MediaItem(
-            id=uuid.uuid4(),
-            source_platform=SourcePlatform.GOOGLE_PHOTOS,
-            media_type=MediaType.PHOTO,
-            file_path=Path(f"/google_photos/takeout/IMG_{i:04d}.jpg"),
-            timestamp=datetime(2020, 1 + i % 12, 15, 10, 30, 0, tzinfo=timezone.utc),
-            location=GeoLocation(
-                latitude=40.7128 + i * 0.1,
-                longitude=-74.0060 + i * 0.1,
-                place_name=f"Location {i}",
-            ),
-            people=["Alice"] if i % 3 == 0 else [],
-        ))
-
-    # Year 3 - 2021 (Mixed)
-    for i in range(8):
-        items.append(MediaItem(
-            id=uuid.uuid4(),
-            source_platform=SourcePlatform.LOCAL if i % 2 == 0 else SourcePlatform.INSTAGRAM,
-            media_type=MediaType.PHOTO,
-            file_path=Path(f"/local/photos/photo_{i}.jpg"),
-            timestamp=datetime(2021, 6 + i % 6, 20, 15, 0, 0, tzinfo=timezone.utc),
-        ))
-
-    # Some items without timestamps
-    items.append(MediaItem(
-        id=uuid.uuid4(),
-        source_platform=SourcePlatform.LOCAL,
-        media_type=MediaType.PHOTO,
-        file_path=Path("/local/unknown/photo.jpg"),
-        timestamp=None,
-    ))
-
-    return items
-
-
-@pytest.fixture
-def sample_life_chapters() -> list[LifeChapter]:
-    """Sample life chapters for testing."""
-    return [
-        LifeChapter(
-            title="The Social Media Era",
-            start_date=date(2019, 1, 1),
-            end_date=date(2019, 12, 31),
-            themes=["social", "friends", "spontaneous"],
-            narrative="A year of casual moments captured on Snapchat...",
-            key_events=["Started new job", "Road trip with friends"],
-            location_summary="Chicago area",
-            media_count=10,
-            representative_media_ids=[],
-            confidence=Confidence.HIGH,
-        ),
-        LifeChapter(
-            title="The Pandemic Year",
-            start_date=date(2020, 1, 1),
-            end_date=date(2020, 12, 31),
-            themes=["home", "reflection", "adaptation"],
-            narrative="A year of significant change and reflection...",
-            key_events=["Started working from home", "Took up photography"],
-            location_summary="Home",
-            media_count=15,
-            representative_media_ids=[],
-            confidence=Confidence.MEDIUM,
-        ),
-        LifeChapter(
-            title="New Beginnings",
-            start_date=date(2021, 1, 1),
-            end_date=date(2021, 12, 31),
-            themes=["growth", "exploration"],
-            narrative="Emerging from lockdown with new perspectives...",
-            key_events=["Moved to new apartment"],
-            location_summary="New York",
-            media_count=8,
-            representative_media_ids=[],
-            confidence=Confidence.MEDIUM,
-        ),
-    ]
-
-
-@pytest.fixture
-def sample_platform_insights() -> list[PlatformBehaviorInsight]:
-    """Sample platform insights for testing."""
-    return [
-        PlatformBehaviorInsight(
-            platform=SourcePlatform.SNAPCHAT,
-            usage_pattern="Quick, spontaneous moments with friends",
-            peak_years=[2019],
-            common_content_types=[MediaType.PHOTO, MediaType.VIDEO],
-            unique_aspects=["Ephemeral content", "Friend-focused"],
-        ),
-        PlatformBehaviorInsight(
-            platform=SourcePlatform.GOOGLE_PHOTOS,
-            usage_pattern="Archival storage for important memories",
-            peak_years=[2020, 2021],
-            common_content_types=[MediaType.PHOTO],
-            unique_aspects=["Auto-backup", "Event organization"],
-        ),
-    ]
-
-
-@pytest.fixture
-def sample_life_report(
-    sample_life_chapters: list[LifeChapter],
-    sample_platform_insights: list[PlatformBehaviorInsight],
-) -> LifeStoryReport:
-    """Pre-built LifeStoryReport for testing report generation."""
-    return LifeStoryReport(
-        generated_at=datetime(2024, 1, 15, 12, 0, 0, tzinfo=timezone.utc),
-        ai_model_used="gemini-1.5-pro",
-        total_media_analyzed=33,
-        date_range=(date(2019, 1, 1), date(2021, 12, 31)),
-        executive_summary=(
-            "This is a journey through three transformative years. "
-            "From the spontaneous social moments of 2019, through the "
-            "reflective pandemic year of 2020, to the new beginnings of 2021."
-        ),
-        chapters=sample_life_chapters,
-        platform_insights=sample_platform_insights,
-        detected_patterns=[
-            "Transition from social to documentary photography",
-            "Decreasing Snapchat usage over time",
-        ],
-        data_gaps=[
-            DataGap(
-                start_date=date(2020, 3, 15),
-                end_date=date(2020, 5, 1),
-                gap_days=47,
-                possible_reasons=["Pandemic lockdown adjustment"],
-            ),
-        ],
-        data_quality_notes=["Good timestamp coverage: 95%"],
-        is_fallback_mode=False,
-    )
-
-
-@pytest.fixture
-def sample_parse_result(sample_media_items: list[MediaItem]) -> ParseResult:
-    """Sample parse result for testing."""
-    return ParseResult(
-        items=sample_media_items,
-        source_paths=[Path("/snapchat"), Path("/google_photos"), Path("/local")],
-        parse_errors=["Failed to parse one file"],
-        stats={
-            "total": len(sample_media_items),
-            "photos": 25,
-            "videos": 5,
-        },
-        duration_seconds=2.5,
-    )
-
-
-# =============================================================================
-# Mock Export Directory Fixtures
+# Helper Functions
 # =============================================================================
 
+def create_test_image(
+    path: Path, 
+    width: int = 100, 
+    height: int = 100, 
+    color: str = "red", 
+    exif_datetime: datetime | None = None
+) -> Path:
+    """Helper to create a test image with optional EXIF metadata.
+    
+    Args:
+        path: Where to save the image.
+        width: Width in pixels.
+        height: Height in pixels.
+        color: Solid color for the image.
+        exif_datetime: Datetime to embed in EXIF (DateTimeOriginal).
+        
+    Returns:
+        Path to the created image.
+    """
+    img = Image.new("RGB", (width, height), color=color)
+    
+    if exif_datetime:
+        # Simple EXIF embedding
+        exif = img.getexif()
+        # 306 is DateTime, 36867 is DateTimeOriginal, 36868 is DateTimeDigitized
+        exif[36867] = exif_datetime.strftime("%Y:%m:%d %H:%M:%S")
+        img.save(path, exif=exif)
+    else:
+        img.save(path)
+        
+    return path
 
-@pytest.fixture
-def snapchat_export_dir(tmp_path: Path) -> Path:
-    """Temp directory with mock Snapchat export structure."""
-    export_dir = tmp_path / "snapchat_export"
-    export_dir.mkdir()
+def create_test_json(path: Path, data: dict) -> Path:
+    """Helper to create a JSON file.
+    
+    Args:
+        path: Where to save the JSON.
+        data: Dictionary to write.
+        
+    Returns:
+        Path to the created JSON.
+    """
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, default=str)
+    return path
 
-    # Create memories directory
-    memories_dir = export_dir / "memories"
-    memories_dir.mkdir()
-
-    # Create memories_history.json
-    memories_history = [
-        {
-            "Date": "2019-05-15 14:30:00 UTC",
-            "Media Type": "PHOTO",
-            "Location": "Chicago, IL",
-        },
-        {
-            "Date": "2019-06-20 10:15:00 UTC",
-            "Media Type": "VIDEO",
-            "Location": "New York, NY",
-        },
-    ]
-    (export_dir / "memories_history.json").write_text(
-        json.dumps(memories_history), encoding="utf-8"
-    )
-
-    # Create sample media files (empty files for testing)
-    (memories_dir / "snap_001.jpg").write_bytes(b"fake image data")
-    (memories_dir / "snap_002.mp4").write_bytes(b"fake video data")
-
-    # Create chat_history directory
-    chat_dir = export_dir / "chat_history"
-    chat_dir.mkdir()
-
-    return export_dir
-
-
-@pytest.fixture
-def google_photos_export_dir(tmp_path: Path) -> Path:
-    """Temp directory with mock Google Photos/Takeout structure."""
-    export_dir = tmp_path / "google_takeout"
-    export_dir.mkdir()
-
-    photos_dir = export_dir / "Takeout" / "Google Photos"
-    photos_dir.mkdir(parents=True)
-
-    # Create album directory
-    album_dir = photos_dir / "Vacation 2020"
-    album_dir.mkdir()
-
-    # Create photo with JSON sidecar
-    photo_path = album_dir / "IMG_001.jpg"
-    photo_path.write_bytes(b"fake image data")
-
-    # JSON sidecar
-    sidecar = {
-        "title": "IMG_001.jpg",
-        "photoTakenTime": {"timestamp": "1594828800"},  # 2020-07-16
-        "geoData": {
-            "latitude": 41.8781,
-            "longitude": -87.6298,
-        },
-        "people": [{"name": "Alice"}],
-    }
-    sidecar_path = album_dir / "IMG_001.jpg.json"
-    sidecar_path.write_text(json.dumps(sidecar), encoding="utf-8")
-
-    # Another photo
-    (album_dir / "IMG_002.jpg").write_bytes(b"fake image 2")
-    (album_dir / "IMG_002.jpg.json").write_text(json.dumps({
-        "title": "IMG_002.jpg",
-        "creationTime": {"timestamp": "1594915200"},
-    }), encoding="utf-8")
-
-    return export_dir
-
-
-@pytest.fixture
-def local_photos_dir(tmp_path: Path) -> Path:
-    """Temp directory with sample local photos."""
-    photos_dir = tmp_path / "local_photos"
-    photos_dir.mkdir()
-
-    # Create year folders
-    year_2020 = photos_dir / "2020"
-    year_2020.mkdir()
-
-    year_2021 = photos_dir / "2021"
-    year_2021.mkdir()
-
-    # Create sample files with date patterns in names
-    (year_2020 / "IMG_20200715_143000.jpg").write_bytes(b"fake photo 1")
-    (year_2020 / "Screenshot_2020-08-10.png").write_bytes(b"fake screenshot")
-    (year_2021 / "PXL_20210301_120000.jpg").write_bytes(b"fake pixel photo")
-
-    return photos_dir
-
-
-@pytest.fixture
-def temp_output_dir(tmp_path: Path) -> Path:
-    """Clean temp directory for test outputs."""
-    output_dir = tmp_path / "test_output"
-    output_dir.mkdir()
-    return output_dir
-
-
-# =============================================================================
-# Mock AI Client Fixtures
-# =============================================================================
-
-
-@pytest.fixture
-def mock_ai_response() -> dict[str, Any]:
-    """Predetermined AI response for testing."""
+def generate_mock_chapter_response() -> dict:
+    """Generate the JSON structure that AI would return for chapter detection."""
     return {
         "chapters": [
             {
-                "title": "Test Chapter",
-                "start_date": "2020-01-01",
-                "end_date": "2020-12-31",
-                "themes": ["test", "mock"],
+                "title": "Early Years & Exploration",
+                "start_date": "2017-01-01",
+                "end_date": "2018-12-31",
+                "themes": ["discovery", "travel", "outdoors"],
+                "location_summary": "National Parks, Various Cities",
                 "confidence": "high",
+                "reasoning": "Consistent travel patterns and outdoor activity."
+            },
+            {
+                "title": "The Big Transition",
+                "start_date": "2019-01-01",
+                "end_date": "2020-06-30",
+                "themes": ["career", "new beginnings", "urban life"],
+                "location_summary": "San Francisco, CA",
+                "confidence": "high",
+                "reasoning": "Major shift in location and daily routines."
+            },
+            {
+                "title": "Finding Stability",
+                "start_date": "2020-07-01",
+                "end_date": "2022-12-31",
+                "themes": ["community", "growth", "home"],
+                "location_summary": "San Francisco & Pacific Northwest",
+                "confidence": "medium",
+                "reasoning": "Settled patterns with occasional regional travel."
             }
-        ],
-        "narrative": "This is a test narrative generated by the mock AI.",
-        "key_events": ["Test event 1", "Test event 2"],
+        ]
     }
 
-
-@pytest.fixture
-def mock_ai_client(mock_ai_response: dict[str, Any]) -> MagicMock:
-    """Mocked AIClient that returns predetermined responses."""
-    mock_client = MagicMock()
-
-    # Mock the model name
-    mock_client.model_name = "gemini-mock"
-
-    # Mock generate method
-    mock_generate_response = MagicMock()
-    mock_generate_response.text = json.dumps(mock_ai_response)
-    mock_generate_response.usage_metadata = MagicMock()
-    mock_generate_response.usage_metadata.prompt_token_count = 100
-    mock_generate_response.usage_metadata.candidates_token_count = 50
-    mock_client.generate.return_value = mock_generate_response
-
-    # Mock generate_json method
-    mock_client.generate_json.return_value = mock_ai_response
-
-    # Mock count_tokens
-    mock_client.count_tokens.return_value = 100
-
-    # Mock is_available
-    mock_client.is_available.return_value = True
-
-    return mock_client
-
-
-@pytest.fixture
-def patch_ai_client(mock_ai_client: MagicMock) -> Generator[MagicMock, None, None]:
-    """Patch the AI client globally for a test."""
-    with patch("organizer.ai.client.get_client", return_value=mock_ai_client):
-        yield mock_ai_client
-
+def generate_mock_narrative_response(title: str = "A Period of Growth") -> dict:
+    """Generate the JSON structure for narrative generation."""
+    return {
+        "narrative": f"This period, known as '{title}', represents a significant chapter in the journey. The documentation shows a shift towards more intentional activities and consistent social connections. It was a time of exploration that eventually led to a more grounded sense of purpose.",
+        "key_events": [
+            "Moving to a new city and establishing a home base",
+            "Consistent documentation of morning routines",
+            "Major career milestone captured in celebratory photos"
+        ],
+        "emotional_arc": "Transition from uncertainty to a confident equilibrium."
+    }
 
 # =============================================================================
-# Configuration Fixtures
+# Core Data Fixtures
 # =============================================================================
 
+@pytest.fixture(scope="session")
+def sample_memories() -> list[Memory]:
+    """Create a realistic set of 20-25 Memory objects for testing.
+    
+    - Spans 2017-2022 (plus some edge cases)
+    - 3 Platforms: SNAPCHAT, GOOGLE_PHOTOS, LOCAL
+    - Media Types: PHOTO, VIDEO, STORY, MESSAGE
+    - Mixed metadata (captions, locations, people)
+    - Includes edge cases: sensitive, None timestamps, future/old dates
+    """
+    memories = []
+    base_date = datetime(2017, 1, 1, tzinfo=timezone.utc)
+    
+    # --- SNAPCHAT (8 memories) ---
+    for i in range(8):
+        dt = base_date + timedelta(days=i * 100)
+        memories.append(Memory(
+            source_platform=SourcePlatform.SNAPCHAT,
+            media_type=MediaType.STORY if i % 3 == 0 else MediaType.PHOTO,
+            created_at=dt,
+            caption=f"Snapchat memory {i}" if i % 2 == 0 else None,
+            location=Location(locality="SnapCity") if i % 4 == 0 else None,
+            people=[PersonTag(name="Alice")] if i == 1 else []
+        ))
+        
+    # --- GOOGLE_PHOTOS (10 memories) ---
+    for i in range(10):
+        dt = base_date + timedelta(days=i * 150 + 200)
+        memories.append(Memory(
+            source_platform=SourcePlatform.GOOGLE_PHOTOS,
+            media_type=MediaType.VIDEO if i == 0 else MediaType.PHOTO,
+            created_at=dt,
+            caption=f"Google Photos item {i}" if i < 7 else None,
+            location=Location(
+                coordinates=GeoPoint(latitude=37.7749, longitude=-122.4194),
+                place_name="San Francisco"
+            ) if i % 3 == 0 else None,
+            people=[PersonTag(name="Bob"), PersonTag(name="Charlie")] if i == 2 else []
+        ))
+        
+    # --- LOCAL (7 memories) ---
+    for i in range(7):
+        dt = base_date + timedelta(days=i * 200 + 400)
+        memories.append(Memory(
+            source_platform=SourcePlatform.LOCAL,
+            media_type=MediaType.MESSAGE if i % 4 == 0 else MediaType.PHOTO,
+            created_at=dt,
+            caption=f"Local media {i}",
+            location=Location(region="California") if i == 1 else None
+        ))
+        
+    # --- SPECIAL CASES ---
+    
+    # 2 Sensitive captions
+    memories.append(Memory(
+        source_platform=SourcePlatform.LOCAL,
+        media_type=MediaType.PHOTO,
+        created_at=base_date + timedelta(days=50),
+        caption="A private and hidden nsfw photo"
+    ))
+    memories.append(Memory(
+        source_platform=SourcePlatform.SNAPCHAT,
+        media_type=MediaType.PHOTO,
+        created_at=base_date + timedelta(days=60),
+        caption="Hidden private folder content"
+    ))
+    
+    # 2 None timestamps
+    memories.append(Memory(
+        source_platform=SourcePlatform.GOOGLE_PHOTOS,
+        media_type=MediaType.PHOTO,
+        created_at=None,
+        caption="Memory with no date"
+    ))
+    memories.append(Memory(
+        source_platform=SourcePlatform.LOCAL,
+        media_type=MediaType.VIDEO,
+        created_at=None,
+        caption="Another undated memory"
+    ))
+    
+    # Future timestamp
+    memories.append(Memory(
+        source_platform=SourcePlatform.LOCAL,
+        media_type=MediaType.PHOTO,
+        created_at=datetime.now(timezone.utc) + timedelta(days=365),
+        caption="Future photo test"
+    ))
+    
+    # Very old timestamp (2010)
+    memories.append(Memory(
+        source_platform=SourcePlatform.LOCAL,
+        media_type=MediaType.PHOTO,
+        created_at=datetime(2010, 5, 15, tzinfo=timezone.utc),
+        caption="Heritage photo"
+    ))
+    
+    # Sort: chronological, None values last
+    memories.sort(key=lambda m: (m.created_at is None, m.created_at))
+    return memories
+
+# =============================================================================
+# Directory Fixtures
+# =============================================================================
 
 @pytest.fixture
-def analysis_config() -> AnalysisConfig:
-    """Default analysis configuration for tests."""
-    return AnalysisConfig(
-        min_chapter_duration_days=30,
-        detect_gaps_threshold_days=60,
-        max_chapters=10,
-        include_platform_analysis=True,
-        privacy_mode=False,
-    )
-
+def snapchat_export_dir(tmp_path: Path) -> Path:
+    """Create a fake Snapchat export directory structure."""
+    export_path = tmp_path / "snapchat_export"
+    export_path.mkdir()
+    
+    create_test_json(export_path / "account.json", {
+        "username": "test_user", 
+        "email": "test@example.com"
+    })
+    
+    create_test_json(export_path / "memories_history.json", [
+        {"Date": "2019-06-15 14:30:22 UTC", "Media Type": "PHOTO", "Location": "37.7749, -122.4194"},
+        {"Date": "2020-01-01 12:00:00 UTC", "Media Type": "PHOTO"},
+        {"Date": "2021-03-15 09:30:00 UTC", "Media Type": "VIDEO"}
+    ])
+    
+    mem_dir = export_path / "memories"
+    mem_dir.mkdir()
+    create_test_image(mem_dir / "memory_001.jpg", 10, 10)
+    create_test_image(mem_dir / "memory_002.jpg", 10, 10)
+    (mem_dir / "memory_003.mp4").write_text("fake video content")
+    
+    chat_dir = export_path / "chat_history" / "friend_alice"
+    chat_dir.mkdir(parents=True)
+    create_test_json(chat_dir / "messages.json", [
+        {"timestamp": "2020-05-20 10:00:00", "text": "Hello!"},
+        {"timestamp": "2020-05-20 10:05:00", "text": "See you soon."}
+    ])
+    create_test_image(chat_dir / "shared_photo.jpg", 10, 10)
+    
+    snap_dir = export_path / "snap_history"
+    snap_dir.mkdir()
+    create_test_json(snap_dir / "snap_history.json", {
+        "Sent Snaps": [{"Timestamp": "2021-01-01 00:00:00"}],
+        "Received Snaps": []
+    })
+    
+    return export_path
 
 @pytest.fixture
-def privacy_config() -> AnalysisConfig:
-    """Privacy-focused configuration for tests."""
-    return AnalysisConfig(
-        min_chapter_duration_days=30,
-        detect_gaps_threshold_days=60,
-        max_chapters=10,
-        include_platform_analysis=True,
-        privacy_mode=True,
+def google_photos_export_dir(tmp_path: Path) -> Path:
+    """Create a fake Google Photos Takeout structure."""
+    takeout_path = tmp_path / "Takeout"
+    gp_path = takeout_path / "Google Photos"
+    gp_path.mkdir(parents=True)
+    
+    # Photos from 2019
+    p2019 = gp_path / "Photos from 2019"
+    p2019.mkdir()
+    create_test_image(p2019 / "IMG_0001.jpg")
+    create_test_json(p2019 / "IMG_0001.jpg.json", {
+        "photoTakenTime": {"timestamp": "1560616222"},
+        "geoData": {"latitude": 40.7128, "longitude": -74.0060},
+        "description": "New York trip"
+    })
+    create_test_image(p2019 / "IMG_0002.jpg")
+    create_test_json(p2019 / "IMG_0002.jpg.json", {
+        "photoTakenTime": {"timestamp": "1570616222"}
+    })
+    
+    # Photos from 2020
+    p2020 = gp_path / "Photos from 2020"
+    p2020.mkdir()
+    (p2020 / "VID_0001.mp4").write_text("video")
+    create_test_json(p2020 / "VID_0001.mp4.json", {
+        "photoTakenTime": {"timestamp": "1580616222"},
+        "people": [{"name": "Alice"}]
+    })
+    
+    # Album
+    album_path = gp_path / "Album - Summer Trip"
+    album_path.mkdir()
+    create_test_image(album_path / "photo.jpg")
+    create_test_json(album_path / "photo.jpg.json", {
+        "photoTakenTime": {"timestamp": "1623765022"}
+    })
+    create_test_json(album_path / "metadata.json", {"album": "Summer Trip"})
+    
+    return takeout_path
+
+@pytest.fixture
+def local_photos_dir(tmp_path: Path) -> Path:
+    """Create a directory with generic local photos."""
+    local_path = tmp_path / "local_photos"
+    local_path.mkdir()
+    
+    # With EXIF
+    create_test_image(
+        local_path / "IMG_20190615_143022.jpg", 
+        exif_datetime=datetime(2019, 6, 15, 14, 30, 22)
     )
+    create_test_image(
+        local_path / "IMG_20200101_120000.jpg", 
+        exif_datetime=datetime(2020, 1, 1, 12, 0, 0)
+    )
+    
+    # No EXIF (PNG)
+    img_png = Image.new("RGB", (100, 100), color="blue")
+    img_png.save(local_path / "Screenshot_20210315-093000.png")
+    
+    # No EXIF, no date in name
+    create_test_image(local_path / "random_photo.jpg")
+    
+    # Video
+    (local_path / "video.mp4").write_text("vid")
+    
+    return local_path
+
+@pytest.fixture
+def empty_dir(tmp_path: Path) -> Path:
+    """Create an empty directory for testing 'no detection' cases."""
+    d = tmp_path / "empty"
+    d.mkdir()
+    return d
+
+@pytest.fixture
+def non_media_dir(tmp_path: Path) -> Path:
+    """Create a directory with non-media files only."""
+    d = tmp_path / "docs"
+    d.mkdir()
+    (d / "document.pdf").write_text("%PDF-1.4")
+    (d / "readme.txt").write_text("Hello world")
+    (d / "data.csv").write_text("id,name\n1,test")
+    return d
+
+@pytest.fixture
+def temp_output_dir(tmp_path: Path) -> Path:
+    """Create a clean output directory."""
+    out = tmp_path / "output"
+    out.mkdir()
+    return out
+
+# =============================================================================
+# Mock AI Fixtures
+# =============================================================================
+
+@pytest.fixture
+def mock_ai_client() -> MagicMock:
+    """Create a mock AIClient that returns predictable responses."""
+    mock = MagicMock()
+    mock.is_available.return_value = True
+    
+    def intelligent_generate(prompt, **kwargs):
+        prompt_lower = prompt.lower()
+        text = "Generic AI response stub."
+        if "narrative" in prompt_lower:
+            text = generate_mock_narrative_response()["narrative"]
+        elif "summary" in prompt_lower:
+            text = "This life story traces a remarkable journey of growth and transformation. From early explorations to settling in a vibrant city, every moment captured contributes to a rich tapestry of experiences."
+            
+        return AIResponse(
+            text=text,
+            model="gemini-1.5-pro",
+            prompt_tokens=100,
+            completion_tokens=50,
+            total_tokens=150,
+            finish_reason="STOP"
+        )
+        
+    def intelligent_generate_json(prompt, **kwargs):
+        prompt_lower = prompt.lower()
+        data = {"message": "Success"}
+        if "chapter" in prompt_lower:
+            data = generate_mock_chapter_response()
+        elif "platform" in prompt_lower:
+            data = {
+                "insights": [
+                    {"platform": "Snapchat", "pattern": "Frequent daily captures of small moments."},
+                    {"platform": "Google Photos", "pattern": "High-quality archival photos of milestone events."},
+                    {"platform": "Local", "pattern": "Diverse mix of personal and captured media."}
+                ]
+            }
+        elif "narrative" in prompt_lower:
+            data = generate_mock_narrative_response()
+            
+        return StructuredAIResponse(
+            data=data,
+            raw_text=json.dumps(data),
+            model="gemini-1.5-pro",
+            tokens_used=200,
+            parse_success=True
+        )
+
+    mock.generate.side_effect = intelligent_generate
+    mock.generate_json.side_effect = intelligent_generate_json
+    mock.generate_structured.side_effect = intelligent_generate_json
+    mock.count_tokens.side_effect = lambda text: len(text) // 4
+    
+    return mock
+
+@pytest.fixture
+def mock_ai_client_unavailable() -> MagicMock:
+    """Create a mock AIClient that simulates unavailability."""
+    mock = MagicMock()
+    mock.is_available.return_value = False
+    mock.generate.side_effect = AIUnavailableError("disabled")
+    mock.generate_json.side_effect = AIUnavailableError("disabled")
+    mock.generate_structured.side_effect = AIUnavailableError("disabled")
+    return mock
+
+@pytest.fixture
+def mock_ai_client_rate_limited() -> MagicMock:
+    """Create a mock that fails with rate limit then succeeds."""
+    mock = MagicMock()
+    mock.is_available.return_value = True
+    
+    # State tracker for calls
+    call_counts = {"generate": 0}
+    
+    def rate_limited_side_effect(*args, **kwargs):
+        call_counts["generate"] += 1
+        if call_counts["generate"] == 1:
+            raise AIRateLimitError("Rate limit exceeded")
+        return AIResponse(
+            text="Success after retry",
+            model="gemini-1.5-pro",
+            total_tokens=100
+        )
+        
+    mock.generate.side_effect = rate_limited_side_effect
+    return mock
+
+# =============================================================================
+# Report Fixtures
+# =============================================================================
+
+@pytest.fixture(scope="session")
+def sample_life_report() -> LifeStoryReport:
+    """Create a complete LifeStoryReport for testing report generation."""
+    chapters = [
+        LifeChapter(
+            title="The Early Chapters",
+            start_date=date(2018, 1, 1),
+            end_date=date(2019, 12, 31),
+            themes=["beginnings", "exploration"],
+            narrative="The journey began with a series of exploratory steps. This period was marked by a high frequency of outdoor activities and travel to local destinations.",
+            key_events=["First solo trip", "Graduation ceremony"]
+        ),
+        LifeChapter(
+            title="New Horizons",
+            start_date=date(2020, 1, 1),
+            end_date=date(2021, 6, 30),
+            themes=["transition", "challenges"],
+            narrative="A shift occurred as new challenges arose. The documentation shows a transition from group-based activities to more reflective, individual pursuits.",
+            key_events=["Relocation to San Francisco", "Starting new role"]
+        ),
+        LifeChapter(
+            title="Finding Our Rhythm",
+            start_date=date(2021, 7, 1),
+            end_date=date(2022, 12, 31),
+            themes=["stability", "community"],
+            narrative="Stability was found in the routine. This chapter highlights the importance of consistent community connection and the growth of long-term projects.",
+            key_events=["Home renovation complete", "Community project launch"]
+        )
+    ]
+    
+    return LifeStoryReport(
+        generated_at=datetime.now(timezone.utc),
+        ai_model="gemini-1.5-pro",
+        total_memories_analyzed=150,
+        executive_summary="This narrative provides a comprehensive look at a five-year journey of transformation. It captures the essential shift from early exploration to finding meaningful stability and community connection.\n\nThrough the lens of over 150 moments, we see an individual who values both adventure and roots, consistently documenting the transitions that define their story.",
+        chapters=chapters,
+        platform_insights=[
+            PlatformBehaviorInsight(
+                platform=SourcePlatform.SNAPCHAT, 
+                usage_pattern="Spontaneous, daily captures of social interactions."
+            ),
+            PlatformBehaviorInsight(
+                platform=SourcePlatform.GOOGLE_PHOTOS, 
+                usage_pattern="Curated archive of milestone events."
+            )
+        ],
+        detected_patterns=["Consistent Sunday morning routines", "Seasonal travel peaks"],
+        data_gaps=[
+            DataGap(
+                start_date=date(2019, 6, 1), 
+                end_date=date(2019, 8, 30), 
+                duration_days=90,
+                severity="moderate"
+            )
+        ],
+        is_fallback=False
+    )
+
+@pytest.fixture(scope="session")
+def sample_fallback_report() -> LifeStoryReport:
+    """Create a fallback mode LifeStoryReport."""
+    chapters = [
+        LifeChapter(
+            title="Year 2019",
+            start_date=date(2019, 1, 1),
+            end_date=date(2019, 12, 31),
+            narrative="Yearly summary for 2019. AI narrative analysis was unavailable for this period."
+        ),
+        LifeChapter(
+            title="Year 2020",
+            start_date=date(2020, 1, 1),
+            end_date=date(2020, 12, 31),
+            narrative="Yearly summary for 2020. AI narrative analysis was unavailable for this period."
+        )
+    ]
+    
+    return LifeStoryReport(
+        generated_at=datetime.now(timezone.utc),
+        ai_model="none (fallback mode)",
+        total_memories_analyzed=50,
+        executive_summary="This report was generated in fallback mode because AI analysis was unavailable. It provides a simple chronological grouping of your memories by year.",
+        chapters=chapters,
+        is_fallback=True
+    )
+
+# =============================================================================
+# Safety Fixtures
+# =============================================================================
+
+@pytest.fixture
+def sample_safety_settings() -> SafetySettings:
+    """Create SafetySettings for testing."""
+    return SafetySettings(
+        enabled=True,
+        sensitivity=SensitivityLevel.MODERATE,
+        nudity_action=SafetyAction.BLUR_IN_REPORT,
+        sexual_action=SafetyAction.HIDE_FROM_REPORT,
+        violence_action=SafetyAction.FLAG_ONLY,
+        use_pixel_analysis=False
+    )
+
+@pytest.fixture
+def memories_with_safety_flags(sample_memories) -> list[tuple[Memory, MemorySafetyState]]:
+    """Create memories paired with pre-assigned safety states."""
+    results = []
+    
+    # Select a few memories to flag
+    m1 = sample_memories[0]
+    s1 = MemorySafetyState(memory_id=m1.id)
+    s1.add_flag(SafetyFlag(
+        category=SafetyCategory.NUDITY,
+        detection_method=DetectionMethod.METADATA_HEURISTIC,
+        source="test_source",
+        confidence=0.9
+    ))
+    s1.resolve_action(SafetySettings())
+    results.append((m1, s1))
+    
+    m2 = sample_memories[1]
+    s2 = MemorySafetyState(memory_id=m2.id)
+    s2.add_flag(SafetyFlag(
+        category=SafetyCategory.NUDITY,
+        detection_method=DetectionMethod.FILENAME_HEURISTIC,
+        source="test_source",
+        confidence=0.85
+    ))
+    s2.resolve_action(SafetySettings())
+    results.append((m2, s2))
+    
+    m3 = sample_memories[2]
+    s3 = MemorySafetyState(memory_id=m3.id)
+    s3.add_flag(SafetyFlag(
+        category=SafetyCategory.PRIVATE,
+        detection_method=DetectionMethod.FILENAME_HEURISTIC,
+        source="test_source",
+        confidence=0.95
+    ))
+    s3.resolve_action(SafetySettings())
+    results.append((m3, s3))
+    
+    # Rest are allowed
+    for m in sample_memories[3:]:
+        s = MemorySafetyState(memory_id=m.id, resolved_action=SafetyAction.ALLOW)
+        results.append((m, s))
+        
+    return results

@@ -27,6 +27,8 @@ Example:
     >>> send_to_gemini(ai_summary)
 """
 
+from __future__ import annotations
+
 import json
 import random
 from collections import Counter, defaultdict
@@ -68,6 +70,21 @@ class DateRange(BaseModel):
     def days(self) -> int:
         """Duration in days."""
         return (self.end - self.start).days + 1
+
+    def contains(self, d: date) -> bool:
+        """Check if date is within range."""
+        return self.start <= d <= self.end
+
+    def overlaps(self, other: DateRange) -> bool:
+        """Check if this range overlaps with another."""
+        return self.start <= other.end and self.end >= other.start
+
+    def merge(self, other: DateRange) -> DateRange:
+        """Merge two ranges into one spanning both."""
+        return DateRange(
+            start=min(self.start, other.start),
+            end=max(self.end, other.end)
+        )
 
 
 # =============================================================================

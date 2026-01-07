@@ -319,6 +319,9 @@ class Location(BaseModel):
         if self.region and self.region not in parts:
             parts.append(self.region)
         
+        if self.country and self.country not in parts:
+            parts.append(self.country)
+        
         if parts:
             return ", ".join(parts)
         

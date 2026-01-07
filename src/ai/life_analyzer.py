@@ -270,6 +270,42 @@ class LifeChapter(BaseModel):
         """Convert to dictionary for serialization."""
         return self.model_dump(mode="json")
 
+    def overlaps_with(self, other: LifeChapter) -> bool:
+        """Check if this chapter overlaps with another."""
+        return self.date_range.overlaps(other.date_range)
+
+    def merge_with(self, other: LifeChapter) -> LifeChapter:
+        """Merge another chapter into this one."""
+        new_range = self.date_range.merge(other.date_range)
+        
+        # Combine themes and deduplicate
+        combined_themes = list(set(self.themes + other.themes))
+        
+        # Combined memory IDs
+        combined_memory_ids = list(set(self.memory_ids + other.memory_ids))
+        
+        return LifeChapter(
+            title=f"{self.title} & {other.title}",
+            start_date=new_range.start,
+            end_date=new_range.end,
+            themes=combined_themes,
+            memory_ids=combined_memory_ids,
+            memory_count=len(combined_memory_ids),
+            narrative=f"{self.narrative}\n\n{other.narrative}",
+            confidence=min(self.confidence, other.confidence)
+        )
+
+    def to_timeline_entry(self) -> dict[str, Any]:
+        """Convert to minimal structure for timeline view."""
+        return {
+            "id": self.id,
+            "title": self.title,
+            "start": self.start_date.isoformat(),
+            "end": self.end_date.isoformat(),
+            "memory_count": self.memory_count,
+            "themes": self.themes
+        }
+
 
 # =============================================================================
 # Analysis Results
