@@ -9,6 +9,9 @@
 
 ---
 
+> [!TIP]
+> **Hackathon Judges**: See [`docs/JUDGES_QUICKSTART.md`](./docs/JUDGES_QUICKSTART.md) for the fastest evaluation path (< 2 minutes). A shared API key is pre-configured for you!
+
 ## What is this?
 
 ### The Problem
@@ -90,12 +93,44 @@ pip install -e .
 
 ### Set Up Your API Key
 
-Get a free Gemini API key from [Google AI Studio](https://makersuite.google.com/app/apikey), then:
+**For Hackathon Judges**: A shared Gemini API key is already configured in `.env.example` for your convenience. Just copy it:
+
+```bash
+cp .env.example .env
+# That's it! The evaluation key is already set.
+```
+
+**For Your Own Use**: Get your personal API key from [Google AI Studio](https://aistudio.google.com/app/apikey), then choose one of these methods:
+
+#### Option 1: Interactive setup (Recommended)
 
 ```bash
 organizer config set-key
 # Enter your API key when prompted (input is hidden)
 ```
+
+#### Option 2: Environment file (For judges/CI)
+
+```bash
+# Copy the template
+cp .env.example .env
+
+# Edit .env and replace with your personal key
+# GEMINI_API_KEY=AIzaSy...YourPersonalKey...
+```
+
+> [!NOTE]
+> Without an API key, the application runs in **"statistics-only mode"** with basic file counts and dates, but no AI narratives or semantic analysis.
+
+### One-Shot Demo (Judges 🏆)
+
+If you are on macOS or Linux, the fastest way to see the project in action is our one-shot demo script:
+
+```bash
+bash scripts/run_demo.sh
+```
+
+This script handles environment detection, dependency verification, demo data generation, and runs the analysis automatically.
 
 ### Run Analysis
 

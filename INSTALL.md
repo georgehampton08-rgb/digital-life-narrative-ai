@@ -174,6 +174,16 @@ This will confirm your key is "configured" without showing the secret value.
 
 Run these tests in order to ensure everything is perfect.
 
+### Method 0: The Quick Path (Recommended for Judges)
+
+If you are on macOS or Linux, you can verify your entire installation with one command:
+
+```bash
+bash scripts/run_demo.sh
+```
+
+This script will check your environment, generate demo data, and run a full analysis. If you have an API key configured, it will use it; otherwise, it will run in fallback mode.
+
 ### Test 1: CLI Accessibility
 
 **Command**: `organizer --help`

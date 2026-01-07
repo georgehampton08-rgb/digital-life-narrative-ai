@@ -1,0 +1,66 @@
+# =============================================================================
+# Digital Life Narrative AI - Docker Ignore
+# =============================================================================
+# Files and directories to exclude from the Docker build context.
+# This speeds up builds and keeps sensitive/unnecessary files out of the image.
+
+# Version Control
+.git
+.github
+.gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+ENV/
+
+# Testing & Linting
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Build Artifacts
+dist/
+build/
+*.egg-info/
+*.egg
+
+# IDE & Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Project-specific generated files
+demo_data/
+output/
+*.html
+life_story_report*
+
+# Secrets & Config (NEVER include in image)
+.env
+.env.*
+*.pem
+*.key
+
+# Documentation (not needed in runtime image)
+*.md
+!README.md
+docs/
+
+# Makefile and dev tools
+Makefile
+
+# Logs and caches
+logs/
+*.log
+.cache/
