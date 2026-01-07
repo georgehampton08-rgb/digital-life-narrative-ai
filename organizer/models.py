@@ -221,9 +221,13 @@ class MediaItem(BaseModel):
         if not privacy_mode and self.people:
             summary["people"] = self.people
 
-        # File info: only include extension, not full path
-        if self.file_path and not privacy_mode:
+        # File info: include extension, name, and parent folder for context
+        if self.file_path:
             summary["file_extension"] = self.file_path.suffix.lower()
+            if not privacy_mode:
+                summary["file_name"] = self.file_path.name
+                # Include parent folder name as it often contains thematic clues (e.g. "Wedding", "Paris")
+                summary["context_folder"] = self.file_path.parent.name
 
         return summary
 

@@ -209,7 +209,7 @@ class AIClient:
 
     def generate(
         self,
-        prompt: str,
+        contents: str | list[Any],
         system_instruction: str | None = None,
         temperature: float | None = None,
         max_tokens: int | None = None,
@@ -217,7 +217,7 @@ class AIClient:
         """Generate a response from the AI model.
 
         Args:
-            prompt: The user prompt to send to the model.
+            contents: The prompt or list of parts (str, images, etc.) to send.
             system_instruction: Optional system instruction to guide the model.
             temperature: Override default temperature (0.0-2.0).
             max_tokens: Override default max tokens.
@@ -240,7 +240,7 @@ class AIClient:
         def do_generate():
             return self._client.models.generate_content(
                 model=self.settings.model_name,
-                contents=prompt,
+                contents=contents,
                 config=config,
             )
 
@@ -256,7 +256,7 @@ class AIClient:
 
     def generate_json(
         self,
-        prompt: str,
+        contents: str | list[Any],
         system_instruction: str | None = None,
     ) -> dict[str, Any]:
         """Generate a JSON response from the AI model.
@@ -286,7 +286,7 @@ class AIClient:
             full_instruction = json_instruction
 
         response = self.generate(
-            prompt=prompt,
+            contents=contents,
             system_instruction=full_instruction,
             temperature=0.3,  # Lower temperature for structured output
         )

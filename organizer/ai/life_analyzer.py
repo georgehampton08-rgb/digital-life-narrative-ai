@@ -16,12 +16,17 @@ The analyzer:
 from __future__ import annotations
 
 import hashlib
+import io
 import json
 import logging
 import random
 from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, Callable
+
+from PIL import Image
+
+from google.genai import types
 
 from organizer.ai.client import (
     AIClient,
@@ -75,11 +80,11 @@ class AINotAvailableError(AnalysisError):
 
 CHAPTER_DETECTION_SYSTEM_PROMPT = """You are a life historian AI analyzing someone's personal media timeline. Your task is to identify distinct chapters or phases in their life based on patterns in their media collection.
 
-Analyze the data to find natural breakpoints that indicate life transitions:
-- Moving to new locations
-- Changes in who appears in photos
-- Shifts in activity patterns or content types
-- Temporal clustering suggesting different life phases
+Analyze both the metadata (dates, locations, folders) and the provided visual samples to find natural breakpoints:
+- **Visual Context**: Look for recurring settings (beach, office, city), people groups, and atmospheric changes (festive, professional, outdoorsy).
+- **Thematic Shifts**: Changes in what they are photographing or doing (actions like hiking, cooking, traveling).
+- **Relational Landmarks**: Changes in who appears in photos (new friends, family events).
+- **Temporal Clustering**: Shifts in documentation frequency suggesting different life phases.
 
 Output your analysis as valid JSON only. Be thoughtful and respectful of the personal nature of this data."""
 
@@ -88,24 +93,25 @@ CHAPTER_DETECTION_USER_PROMPT = """Based on this chronological media timeline su
 ## Timeline Summary
 {temporal_summary}
 
-## Sample Items
+## Sample Items (Pixels & Discovery)
 {sample_items}
 
 ## Instructions
 Identify {min_chapters} to {max_chapters} distinct life chapters. 
 
-CRITICAL: Avoid using years as titles (e.g., "2024"). Instead, look for:
-1. **Thematic Shifts**: Changes in what they are photographing (e.g., from 'Late Nights' to 'Early Mornings').
+CRITICAL: Do not just summarize dates. **Discover the story** from the evidence.
+Look for:
+1. **Thematic Shifts**: Changes in what they are photographing. Look at `context_folder` and `file_name` (e.g., shifts from "Work" to "Wedding" folder, or "IMG_123" to "Snapchat").
 2. **Location Landmarks**: Moving from one city or area to another.
 3. **Activity Clusters**: A sudden focus on travel, a new hobby, or a specific group of people.
-4. **Relational Shifts**: Subtle changes in identifying tags or face clusters.
+4. **Platform Shifts**: Moving from DSLR photography to casual Snapchat memories.
 
 For each chapter, provide:
 1. A poetic, evocative title (e.g., "The Nomadic Summer", "Foundations in Seattle", "The Creative Renaissance")
 2. Precise start and end dates (YYYY-MM-DD)
 3. A list of 3-5 sub-themes
 4. A location summary
-5. A 'reasoning' block explaining why pixels and metadata suggested this specific breakpoint.
+5. A 'reasoning' block explaining the **archaeological evidence** (specific folders, filenames, or content clusters) that suggested this breakpoint.
 
 Respond with valid JSON only:
 ```json
@@ -117,16 +123,21 @@ Respond with valid JSON only:
     "themes": ["theme1", "theme2"],
     "location_summary": "Location name or null",
     "confidence": "high|medium|low",
-    "reasoning": "Archeological evidence: shift from local photos to travel metadata and new face clusters."
+    "reasoning": "Archeological evidence: shift from local photos in 'Home' folder to international travel metadata in 'Europe2024' folder and new face clusters."
   }}
 ]
 ```"""
 
-NARRATIVE_SYSTEM_PROMPT = """You are a skilled biographer and life storyteller. Given information about a chapter in someone's life, write a warm, engaging narrative that brings this period to life.
+NARRATIVE_SYSTEM_PROMPT = """You are a skilled biographer and life storyteller with advanced visual intelligence. Given information about a chapter in someone's life and representative photos, write a warm, engaging narrative that brings this period to life.
 
-Write in third person, as if telling their story to someone who wants to understand this phase of their life. Be specific where the data allows, but respectful of privacy. Focus on the human experience behind the media."""
+Capture the "Visual Spirit" of the chapter:
+- **Objects & Actions**: Mention significant objects (musical instruments, cars, pets) or actions (celebrating, gardening, trekking) you see in the photos.
+- **Atmosphere**: Describe the overall aesthetic and setting (urban grit, coastal peace, cozy interiors).
+- **Human Connection**: Note the presence of people, their interactions, and the general community or solitude of the phase.
 
-NARRATIVE_USER_PROMPT = """Write a narrative for this life chapter:
+Write in third person, as if telling their story to someone who wants to understand this phase of their life. Be specific where the visual and metadata evidence allow. Avoid generic filler; if you see a specific kind of camera or a specific mountain range, mention it."""
+
+NARRATIVE_USER_PROMPT = """Write a narrative for this life chapter, discovered from their digital collection:
 
 ## Chapter: {title}
 - Period: {start_date} to {end_date}
@@ -134,22 +145,22 @@ NARRATIVE_USER_PROMPT = """Write a narrative for this life chapter:
 - Location: {location}
 - Media Count: {media_count} items
 
-## Sample Moments from This Chapter
+## Archaeological Evidence (Metadata & Visual Cues)
 {sample_items}
 
 ## Instructions
 Write 2-3 paragraphs that:
-1. Capture the essence of this life phase
-2. Highlight key patterns, activities, or moments
-3. Suggest the emotional arc or growth during this period
-4. Note any transitions or turning points if evident
+1. Capture the human essence of this life phase. Avoid generic corporate speak.
+2. Highlight specific patterns found in the **folder names, filenames, and captions**. (e.g., "The transition into the 'University' folder marks a shift...")
+3. Connect the metadata to the human journey. If there are 500 photos in one week, what does that say?
+4. Suggest the emotional arc—from quiet introspection to vibrant social activity.
 
-Also identify 3-5 key events or moments that define this chapter.
+Also identify 3-5 key events or moments that define this chapter based on burst activity or specific filenames.
 
 Respond with JSON:
 ```json
 {{
-  "narrative": "Your 2-3 paragraph narrative here...",
+  "narrative": "Your 2-3 paragraph biography here...",
   "key_events": ["Event 1", "Event 2", "Event 3"],
   "emotional_arc": "Brief description of emotional journey"
 }}
@@ -184,15 +195,16 @@ Respond with JSON array:
 ]
 ```"""
 
-EXECUTIVE_SUMMARY_SYSTEM_PROMPT = """You are a master biographer and digital archeologist. Your task is to write a deeply moving and evocative opening summary of someone's life story based on the digital trail they've left behind.
+EXECUTIVE_SUMMARY_SYSTEM_PROMPT = """You are a master biographer and digital archaeologist. Your task is to write a deeply moving and evocative opening summary of someone's life story based on the digital trail they've left behind.
 
-You weave together statistical facts (pixels, metadata, counts) with the human essence revealed in their chapters. Your tone is literary, reflective, and observant. You don't just list facts; you tell a story of growth, change, and the passage of time.
+You weave together statistical facts (pixels, metadata, counts) with the human essence revealed in their chapters. 
 
-Focus on:
-1. The significance of their digital presence (where they documented most)
-2. The transitions between phases (the "silent" shifts found in timestamps)
-3. The recurring themes that define their identity across a decade
-4. The emotional resonance of their most documented years"""
+**Archeological Discovery Instructions**:
+- **Visual Synthesis**: Connect visual landmarks (objects, actions, atmosphere) discovered across chapters into a cohesive life journey.
+- **Evidence-Based Narrative**: Mention how specific evidence (folder names, platform shifts, metadata density) reveals human growth and change.
+- **The Voice**: Your tone is literary, reflective, and observant. Focus on the human experience behind the bits and pixels.
+
+Write 5-6 paragraphs that serve as the definitive summary of this person's digital legacy."""
 
 EXECUTIVE_SUMMARY_USER_PROMPT = """Write a definitive, 5-paragraph life story summary based on this digital collection:
 
@@ -575,18 +587,18 @@ class LifeStoryAnalyzer:
         min_chapters = max(2, years_covered // 5)
         max_chapters = min(self.config.max_chapters, max(5, years_covered // 2))
 
-        prompt = CHAPTER_DETECTION_USER_PROMPT.format(
-            temporal_summary=summary_str,
-            sample_items=items_str,
-            min_chapters=min_chapters,
-            max_chapters=max_chapters,
-        )
+        # Prepare multimodal contents
+        contents = [prompt]
+        
+        # Add a few representative images from across the collection to anchor the detection
+        vision_parts = self._get_vision_parts(items, max_images=5)
+        contents.extend(vision_parts)
 
-        logger.debug(f"Detecting chapters (prompt tokens: ~{len(prompt) // 4})")
+        logger.debug(f"Detecting chapters (prompt tokens: ~{len(prompt) // 4}, images: {len(vision_parts)})")
 
         try:
             result = self.client.generate_json(
-                prompt=prompt,
+                prompt=contents if len(contents) > 1 else prompt,
                 system_instruction=CHAPTER_DETECTION_SYSTEM_PROMPT,
             )
 
@@ -802,8 +814,13 @@ class LifeStoryAnalyzer:
                     sample_items=json.dumps(prepared, indent=2, default=str),
                 )
 
+                # Prepare multimodal content for narrative
+                contents = [prompt]
+                vision_parts = self._get_vision_parts(chapter_items, max_images=3)
+                contents.extend(vision_parts)
+
                 result = self.client.generate_json(
-                    prompt=prompt,
+                    prompt=contents if len(contents) > 1 else prompt,
                     system_instruction=NARRATIVE_SYSTEM_PROMPT,
                 )
 
@@ -873,7 +890,7 @@ class LifeStoryAnalyzer:
         )
 
         result = self.client.generate_json(
-            prompt=prompt,
+            contents=prompt,
             system_instruction=PLATFORM_ANALYSIS_SYSTEM_PROMPT,
         )
 
@@ -971,7 +988,7 @@ class LifeStoryAnalyzer:
         )
 
         response = self.client.generate(
-            prompt=prompt,
+            contents=prompt,
             system_instruction=EXECUTIVE_SUMMARY_SYSTEM_PROMPT,
         )
 
@@ -1065,7 +1082,7 @@ class LifeStoryAnalyzer:
 
         prompt = GAP_ANALYSIS_PROMPT.format(gaps="\n".join(gaps_text))
 
-        result = self.client.generate_json(prompt=prompt)
+        result = self.client.generate_json(contents=prompt)
 
         if isinstance(result, list):
             for item in result:
@@ -1078,6 +1095,89 @@ class LifeStoryAnalyzer:
     # =========================================================================
     # Sampling and Utilities
     # =========================================================================
+
+    def _get_vision_parts(self, items: list[MediaItem], max_images: int = 3) -> list[types.Part]:
+        """Get visual parts (images) for multimodal analysis.
+        
+        Args:
+            items: Media items to sample from.
+            max_images: Maximum number of images to include.
+            
+        Returns:
+            List of types.Part objects containing image data.
+        """
+        # Skip if privacy mode is too strict
+        if self.privacy.local_only_mode:
+            return []
+
+        # Find items with valid local image files
+        visual_items = [
+            i for i in items 
+            if i.file_path and i.file_path.exists() 
+            and i.media_type == MediaType.PHOTO
+            and i.file_path.suffix.lower() in ('.jpg', '.jpeg', '.png', '.webp')
+        ]
+        
+        if not visual_items:
+            return []
+
+        # Sample spanning the range with intelligence
+        if len(visual_items) > max_images:
+            # Sort items by "richness" (people count + caption)
+            # but we still want them to be somewhat chronologically distributed.
+            # We'll split the items into 'max_images' buckets and pick the "best" from each bucket.
+            bucket_size = len(visual_items) // max_images
+            sampled = []
+            for i in range(max_images):
+                start_idx = i * bucket_size
+                end_idx = start_idx + bucket_size if i < max_images - 1 else len(visual_items)
+                bucket = visual_items[start_idx:end_idx]
+                
+                # Pick the "best" item in the bucket: prioritize people > captions > random
+                # (Simple score: people_count*2 + (1 if caption else 0))
+                best_item = max(
+                    bucket, 
+                    key=lambda x: (len(x.people) * 2 + (1 if x.caption else 0) + random.random())
+                )
+                sampled.append(best_item)
+        else:
+            sampled = visual_items
+
+        parts = []
+        for item in sampled:
+            try:
+                # Open and process image efficiently
+                with Image.open(item.file_path) as img:
+                    # Convert to RGB if necessary (e.g. for RGBA or CMYK)
+                    if img.mode != "RGB":
+                        img = img.convert("RGB")
+                    
+                    # Resize if too large - maintaining aspect ratio
+                    max_dim = 1600
+                    if max(img.width, img.height) > max_dim:
+                        if img.width > img.height:
+                            new_size = (max_dim, int(img.height * (max_dim / img.width)))
+                        else:
+                            new_size = (int(img.width * (max_dim / img.height)), max_dim)
+                        img = img.resize(new_size, Image.Resampling.LANCZOS)
+                        logger.debug(f"Resized image for vision: {item.file_path.name} to {new_size}")
+
+                    # Save to bytes as JPEG
+                    buf = io.BytesIO()
+                    img.save(buf, format="JPEG", quality=80, optimize=True)
+                    img_bytes = buf.getvalue()
+
+                # Basic size check (Gemini parts should be < 20MB)
+                if len(img_bytes) > 15 * 1024 * 1024:
+                    logger.debug(f"Skipping extremely large image: {item.file_path.name}")
+                    continue
+
+                parts.append(types.Part.from_bytes(data=img_bytes, mime_type="image/jpeg"))
+                logger.debug(f"Added vision part (optimized): {item.file_path.name} ({len(img_bytes) / 1024:.1f} KB)")
+            except Exception as e:
+                logger.warning(f"Failed to process image for vision: {e}")
+
+        return parts
 
     def _sample_items_for_prompt(
         self,
