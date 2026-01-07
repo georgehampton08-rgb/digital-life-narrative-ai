@@ -73,6 +73,13 @@ from src.ai.prompts import (
 )
 from src.core.memory import ConfidenceLevel, MediaType, Memory, SourcePlatform
 from src.core.timeline import DateRange, Timeline, TimelineGap, TimelineStatistics
+from src.ai.cache import (
+    AICache,
+    CacheMeta,
+    fingerprint_media_set,
+    fingerprint_analysis_config,
+    get_machine_id,
+)
 
 if TYPE_CHECKING:
     from src.core.privacy import PrivacyGate
@@ -470,6 +477,7 @@ class LifeStoryAnalyzer:
         client: AIClient | None = None,
         config: AnalysisConfig | None = None,
         privacy_gate: "PrivacyGate | None" = None,
+        cache: AICache | None = None,
     ) -> None:
         """Initialize the analyzer.
         
@@ -477,10 +485,13 @@ class LifeStoryAnalyzer:
             client: AI client (uses get_client() if not provided).
             config: Analysis configuration (uses defaults if not provided).
             privacy_gate: Optional privacy filter for memories.
+            cache: Optional cache instance. If None and caching is desired,
+                   create one with AICache().
         """
         self._client = client
         self._config = config or AnalysisConfig()
         self._privacy_gate = privacy_gate
+        self._cache = cache
         self._logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
         
         # Track tokens and timing
@@ -546,6 +557,64 @@ class LifeStoryAnalyzer:
             analysis_config=vars(self._config),
             total_memories_analyzed=len(memories),
         )
+        
+        # -----------------------------------------------------------------
+        # Cache: Compute fingerprints and check for cached result
+        # -----------------------------------------------------------------
+        media_fp: str | None = None
+        config_fp: str | None = None
+        cache_key: str | None = None
+        
+        if self._cache is not None:
+            try:
+                # Import privacy settings for fingerprinting if gate exists
+                privacy_settings = None
+                if self._privacy_gate is not None:
+                    # Access privacy config through the gate if available
+                    privacy_settings = getattr(self._privacy_gate, "_config", None)
+                
+                # Compute fingerprints
+                media_fp = fingerprint_media_set(memories)
+                config_fp = fingerprint_analysis_config(self._config, privacy_settings)
+                cache_key = self._cache.build_cache_key(media_fp, config_fp, "full_report")
+                
+                # Try to load cached result
+                cached_payload = self._cache.load(cache_key, media_fp, config_fp)
+                
+                if cached_payload is not None:
+                    self._logger.info("Cache hit: returning cached analysis")
+                    
+                    # Reconstruct report from cached data
+                    try:
+                        cached_report = self._reconstruct_report_from_cache(cached_payload)
+                        cached_report.generation_time_seconds = time.time() - self._start_time
+                        
+                        # Emit final progress for cache hit
+                        if progress_callback:
+                            progress = AnalysisProgress(
+                                stage="cache_hit",
+                                current_step=1,
+                                total_steps=1,
+                                message="Loaded from cache",
+                                elapsed_seconds=cached_report.generation_time_seconds,
+                            )
+                            try:
+                                progress_callback(progress)
+                            except Exception:
+                                pass
+                        
+                        return cached_report
+                    except Exception as e:
+                        self._logger.warning(f"Cache reconstruction failed: {e}. Proceeding with full analysis.")
+                else:
+                    self._logger.debug("Cache miss: proceeding with full analysis")
+                    
+            except Exception as e:
+                # Cache errors should never break analysis
+                self._logger.warning(f"Cache check failed (non-fatal): {e}")
+                media_fp = None
+                config_fp = None
+                cache_key = None
         
         def emit_progress(
             stage: str,
@@ -782,6 +851,32 @@ class LifeStoryAnalyzer:
                 f"{report.tokens_used} tokens, {report.generation_time_seconds:.1f}s"
             )
             
+            # -----------------------------------------------------------------
+            # Cache: Store result for future runs
+            # -----------------------------------------------------------------
+            if self._cache is not None and cache_key is not None and media_fp is not None and config_fp is not None:
+                try:
+                    meta = CacheMeta(
+                        created_at=time.time(),
+                        machine_id=get_machine_id(),
+                        media_set_fingerprint=media_fp,
+                        analysis_config_fingerprint=config_fp,
+                        version=self._cache._version,
+                        item_count=len(memories),
+                    )
+                    
+                    # Serialize report to dict
+                    report_dict = self._serialize_report_for_cache(report)
+                    
+                    success = self._cache.store(cache_key, meta, report_dict)
+                    if success:
+                        self._logger.debug(f"Cached analysis result: {cache_key[:16]}...")
+                    else:
+                        self._logger.warning("Failed to cache analysis result")
+                except Exception as e:
+                    # Never let cache failures break the analysis
+                    self._logger.warning(f"Cache storage error (non-fatal): {e}")
+            
             return report
             
         except AIUnavailableError:
@@ -799,6 +894,39 @@ class LifeStoryAnalyzer:
             report.generation_time_seconds = time.time() - self._start_time
             
             return report
+    
+    # =========================================================================
+    # Cache Serialization Helpers
+    # =========================================================================
+    
+    def _serialize_report_for_cache(self, report: LifeStoryReport) -> dict[str, Any]:
+        """Convert a LifeStoryReport to a cache-safe dictionary.
+        
+        Uses Pydantic's model_dump() to serialize the report.
+        
+        Args:
+            report: The report to serialize.
+        
+        Returns:
+            Dictionary representation of the report.
+        """
+        return report.model_dump(mode="json")
+    
+    def _reconstruct_report_from_cache(self, payload: dict[str, Any]) -> LifeStoryReport:
+        """Reconstruct a LifeStoryReport from a cached dictionary.
+        
+        Uses Pydantic's model_validate() to rebuild the report with proper validation.
+        
+        Args:
+            payload: Cached report dictionary.
+        
+        Returns:
+            Reconstructed LifeStoryReport.
+        
+        Raises:
+            ValueError: If the payload cannot be validated.
+        """
+        return LifeStoryReport.model_validate(payload)
     
     # =========================================================================
     # Private Analysis Methods

@@ -249,7 +249,7 @@ class AIConfig(BaseModel):
     """Configuration for Gemini AI integration.
     
     Controls all aspects of AI model invocation including model selection,
-    generation parameters, and retry behavior. By default, AI is DISABLED
+    generation parameters, retry behavior, and caching. By default, AI is DISABLED
     and must be explicitly enabled by the user.
     
     Attributes:
@@ -260,6 +260,9 @@ class AIConfig(BaseModel):
         timeout_seconds: Request timeout. Must balance between reliability and speed.
         max_retries: Number of retry attempts on transient failures.
         retry_base_delay: Base delay for exponential backoff between retries.
+        cache_enabled: Enable caching of AI analysis results.
+        cache_dir: Directory for cache files. None = platform default.
+        cache_version: Cache schema version for invalidation control.
     
     Example:
         >>> ai_config = AIConfig(mode=AIMode.ENABLED, temperature=0.5)
@@ -309,6 +312,22 @@ class AIConfig(BaseModel):
         default=True,
         description="Require explicit user consent before making AI requests."
     )
+    
+    # Cache settings for AI analysis results
+    cache_enabled: bool = Field(
+        default=True,
+        description="Enable caching of AI analysis results for faster repeat runs."
+    )
+    cache_dir: Path | None = Field(
+        default=None,
+        description="Cache directory. None = use platform default (~/.cache/... or equivalent)."
+    )
+    cache_version: str = Field(
+        default="1.0",
+        description="Cache schema version. Changing this invalidates all existing cache entries."
+    )
+    
+    model_config = {"arbitrary_types_allowed": True}
     
     def is_enabled(self) -> bool:
         """Check if AI features are enabled.

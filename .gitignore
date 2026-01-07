@@ -267,3 +267,21 @@ credentials.enc
 /temp/
 /tmp/
 
+# -----------------------------------------------------------------------------
+# AI Analysis Cache (machine-local, safe to delete)
+# -----------------------------------------------------------------------------
+# NOTE: AI analysis results are cached locally for performance.
+# Cache is machine-specific and not portable across computers.
+# Deleting cache directories simply triggers recomputation on next run.
+
+# Platform-specific cache directories (stored outside project by default)
+.life-story-cache/
+**/life-story-reconstructor/
+**/.dlna/cache/
+
+# Any JSON files in cache directory patterns
+**/*cache*/*.json
+
+# In-project cache directories (if custom path is set inside project)
+cache/
+.cache/

@@ -238,6 +238,20 @@ organizer config reset              # Reset to defaults
 
 ---
 
+## Caching
+
+Analysis results are cached locally for faster repeat runs. The cache:
+
+- Is stored in your system's cache directory (`~/.cache/life-story-reconstructor` on Linux, `~/Library/Caches/...` on macOS, `%LOCALAPPDATA%\...` on Windows)
+- Is specific to your machine (won't work if you copy the repo elsewhere)
+- Is automatically invalidated when your media changes or analysis settings change
+- Can be safely deleted at any time (just triggers recomputation on next run)
+- Is never committed to Git
+
+To disable caching, set `ai.cache_enabled: false` in your config file.
+
+---
+
 ## Development
 
 ### Setup
@@ -258,76 +272,102 @@ poetry shell
 
 ```bash
 # Run all tests
-pytest
-
-# Run with coverage
-pytest --cov=organizer --cov-report=html
+python -m pytest tests/ --override-ini="addopts="
 
 # Run specific test file
-pytest tests/test_models.py -v
+python -m pytest tests/test_core_models.py -v --override-ini="addopts="
+
+# Run with verbose output
+python -m pytest tests/ -v --tb=short --override-ini="addopts="
 ```
 
 ### Code Quality
 
 ```bash
 # Format code
-black organizer tests
+black src tests
 
 # Lint
-ruff check organizer tests
+ruff check src tests
 
-# Type check
-mypy organizer
+# Type check (optional)
+mypy src
 ```
 
 ### Project Structure
 
 ```text
 digital-life-narrative-ai/
-├── organizer/
-│   ├── __init__.py         # Package exports
-│   ├── models.py           # Pydantic data models
-│   ├── config.py           # Configuration & API key management
-│   ├── detection.py        # Platform detection
-│   ├── cli.py              # Click CLI
-│   ├── report.py           # HTML/JSON report generation
-│   ├── organizer.py        # File organization
+├── src/
+│   ├── __init__.py              # Package exports
+│   ├── config.py                # Configuration & API key management
+│   ├── detection.py             # Platform detection
+│   ├── core/
+│   │   ├── memory.py            # Universal Memory data model
+│   │   ├── timeline.py          # Timeline aggregation & gap analysis
+│   │   ├── privacy.py           # Privacy gate & content filtering
+│   │   └── safety.py            # Safety settings & sensitivity levels
 │   ├── parsers/
-│   │   ├── base.py         # BaseParser & registry
-│   │   ├── snapchat.py     # Snapchat parser
-│   │   ├── google_photos.py # Google Takeout parser
-│   │   └── local.py        # Local photos parser
+│   │   ├── base.py              # BaseParser & registry
+│   │   ├── pipeline.py          # Parsing orchestration
+│   │   ├── snapchat.py          # Snapchat Memories parser
+│   │   ├── google_photos.py     # Google Takeout parser
+│   │   └── local_files.py       # Local photos parser
 │   ├── ai/
-│   │   ├── client.py       # Gemini API wrapper
-│   │   ├── life_analyzer.py # Main analysis engine
-│   │   └── fallback.py     # Statistics-only fallback
-│   └── utils/
-│       ├── logging.py      # Logging configuration
-│       └── hashing.py      # File hashing utilities
+│   │   ├── client.py            # Gemini API wrapper with retry logic
+│   │   ├── life_analyzer.py     # Main AI analysis engine
+│   │   ├── fallback.py          # Statistics-only fallback analyzer
+│   │   ├── prompts.py           # Prompt templates for Gemini
+│   │   ├── cache.py             # Machine-local analysis cache
+│   │   ├── content_filter.py    # AI content safety filtering
+│   │   ├── disclosure.py        # AI disclosure management
+│   │   └── usage_tracker.py     # API usage & cost tracking
+│   ├── output/
+│   │   └── html_report.py       # Self-contained HTML report generator
+│   └── cli/
+│       └── main.py              # Click CLI commands
 ├── tests/
-│   ├── conftest.py         # Pytest fixtures
-│   ├── test_models.py      # Model tests
-│   ├── test_parsers.py     # Parser tests
-│   ├── test_ai.py          # AI tests (mocked)
-│   └── test_cli.py         # CLI tests
-├── pyproject.toml          # Poetry configuration
-├── ARCHITECTURE.md         # Technical documentation
-├── PRIVACY.md              # Privacy documentation
-└── README.md               # This file
+│   ├── conftest.py              # Pytest fixtures
+│   ├── test_core_models.py      # Core data model tests
+│   ├── test_memory.py           # Memory model tests
+│   ├── test_detection_and_parsers.py  # Parser tests
+│   ├── test_ai_and_safety.py    # AI & safety tests
+│   ├── test_cli_and_report.py   # CLI & report tests
+│   └── test_src_ai_client.py    # AI client tests
+├── demo/
+│   ├── DEMO.md                  # Demo walkthrough
+│   └── generate_demo_data.py    # Synthetic data generator
+├── pyproject.toml               # Poetry configuration
+├── ARCHITECTURE.md              # Technical documentation
+├── PRIVACY.md                   # Privacy documentation
+├── LICENSE                      # MIT License
+└── README.md                    # This file
 ```
 
 ---
 
 ## Contributing
 
-Contributions are welcome! Please:
+Contributions are welcome! Please see **[CONTRIBUTING.md](CONTRIBUTING.md)** for:
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Make your changes
-4. Run tests (`pytest`)
-5. Format code (`black . && ruff check .`)
-6. Submit a Pull Request
+- Development setup instructions
+- Code standards and style guide
+- Testing guidelines
+- Pull request process
+
+### Quick Start for Contributors
+
+```bash
+# Fork and clone
+git clone https://github.com/YOUR_USERNAME/digital-life-narrative-ai.git
+cd digital-life-narrative-ai
+
+# Install and test
+poetry install
+python -m pytest tests/ --override-ini="addopts="
+
+# Make changes, then submit a PR!
+```
 
 ### Adding a New Platform
 

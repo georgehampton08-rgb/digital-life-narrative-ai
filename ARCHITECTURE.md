@@ -451,6 +451,81 @@ def _sample_items_for_prompt(items: list, max_items: int = 200) -> list:
 
 ---
 
+### AI Result Caching
+
+The system caches AI analysis results locally to avoid redundant API calls and improve repeat run performance.
+
+#### Cache Key Components
+
+Each cache entry is keyed by:
+
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│                        CACHE KEY                                 │
+├─────────────────────────────────────────────────────────────────┤
+│  1. Machine ID       - Hash of hostname + home directory        │
+│  2. Media Fingerprint - Hash of sorted item identifiers         │
+│  3. Config Fingerprint - Hash of analysis settings              │
+│  4. Purpose          - "full_report", "chapters", etc.          │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+#### Cache Invalidation
+
+Cache entries are automatically invalidated when:
+
+| Trigger | Why |
+| ------- | --- |
+| Different machine | Machine ID won't match (privacy boundary) |
+| Media files change | Media fingerprint changes |
+| Analysis config changes | Config fingerprint changes |
+| Schema version bumps | Version field in metadata mismatches |
+
+#### Cache Storage
+
+```text
+Default Locations:
+- macOS: ~/Library/Caches/life-story-reconstructor/
+- Linux: ~/.cache/life-story-reconstructor/
+- Windows: %LOCALAPPDATA%/life-story-reconstructor/cache/
+```
+
+#### Cache Security
+
+The cache NEVER stores:
+
+- API keys or secrets
+- Raw image/video bytes
+- Full file paths (privacy leak)
+- Complete captions
+
+The cache ALWAYS:
+
+- Uses restrictive file permissions (0o700 on Unix)
+- Validates entries against current machine ID
+- Logs at debug level only (no content)
+- Fails gracefully on any error (falls back to recomputation)
+
+#### Cache File Format
+
+```json
+{
+  "meta": {
+    "created_at": 1704567890.123,
+    "machine_id": "a1b2c3d4e5f67890",
+    "media_set_fingerprint": "abc123...",
+    "analysis_config_fingerprint": "def456...",
+    "version": "1.0",
+    "item_count": 150
+  },
+  "payload": {
+    // LifeStoryReport as JSON
+  }
+}
+```
+
+---
+
 ## Adding New Platforms
 
 ### Step-by-Step Guide

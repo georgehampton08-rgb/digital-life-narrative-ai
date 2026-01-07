@@ -285,6 +285,25 @@ Reports (`life_story.html`, `life_story.json`) are saved to your specified outpu
 - You control deletion and sharing
 - No copies are made elsewhere
 
+### Local Analysis Cache
+
+AI analysis results are cached locally to avoid redundant API calls:
+
+- **Location**: Platform-specific cache directory (`~/.cache/...` on Linux, `~/Library/Caches/...` on macOS, `%LOCALAPPDATA%\...` on Windows)
+- **Contents**: Cached AI analysis results (chapter narratives, summaries, etc.)
+- **What's NOT cached**: Raw images, full file paths, API keys
+- **Machine-bound**: Cache is tied to your machine via hashed machine ID (not portable)
+- **Safe to delete**: Removing the cache just triggers recomputation on next run
+
+To disable caching:
+
+```bash
+# Via config
+organizer config set ai.cache_enabled false
+```
+
+To clear the cache: Delete the `life-story-reconstructor` directory in your platform's cache location.
+
 ---
 
 ## Recommendations
