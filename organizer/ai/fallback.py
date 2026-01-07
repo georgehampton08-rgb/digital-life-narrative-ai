@@ -29,8 +29,8 @@ from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
-from organizer.config import AnalysisConfig
 from organizer.models import (
+    AnalysisConfig,
     Confidence,
     DataGap,
     LifeChapter,

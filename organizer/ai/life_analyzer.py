@@ -29,8 +29,9 @@ from organizer.ai.client import (
     AIRequestError,
     get_client,
 )
-from organizer.config import AnalysisConfig, PrivacySettings
+from organizer.config import PrivacySettings
 from organizer.models import (
+    AnalysisConfig,
     Confidence,
     DataGap,
     LifeChapter,

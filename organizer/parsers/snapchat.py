@@ -36,6 +36,11 @@ from organizer.models import (
     SourcePlatform,
 )
 from organizer.parsers.base import BaseParser, ParserRegistry
+from organizer.utils import (
+    ArchiveExtractionError,
+    detect_archives_in_directory,
+    extract_archive,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -97,11 +102,12 @@ class SnapchatParser(BaseParser):
         """Initialize the Snapchat parser."""
         super().__init__()
         self._location_cache: dict[str, GeoLocation] = {}
+        self._temp_extract_dir: Path | None = None
 
     def can_parse(self, root_path: Path) -> bool:
         """Check if this parser can handle the given path.
 
-        Looks for Snapchat-specific files and folders.
+        Looks for Snapchat-specific files or ZIP archives.
 
         Args:
             root_path: Path to check.
@@ -109,8 +115,20 @@ class SnapchatParser(BaseParser):
         Returns:
             True if Snapchat export detected.
         """
-        if not root_path.exists() or not root_path.is_dir():
+        if not root_path.exists():
             return False
+
+        # If it's a ZIP file, check if it's a Snapchat archive
+        if root_path.is_file() and root_path.suffix.lower() == ".zip":
+            return "snapchat" in root_path.name.lower()
+
+        if not root_path.is_dir():
+            return False
+
+        # Check for Snapchat ZIP files in directory
+        snap_zips = detect_archives_in_directory(root_path)
+        if any("snapchat" in z.name.lower() for z in snap_zips):
+            return True
 
         # Check for key Snapchat files/folders
         indicators = [
@@ -130,8 +148,10 @@ class SnapchatParser(BaseParser):
     ) -> ParseResult:
         """Parse Snapchat export and extract all media items.
 
+        Automatically extracts ZIP archives if needed.
+
         Args:
-            root_path: Root directory of the Snapchat export.
+            root_path: Root directory or ZIP file of the Snapchat export.
             progress_callback: Optional callback for progress updates.
 
         Returns:
@@ -145,60 +165,114 @@ class SnapchatParser(BaseParser):
         # Reset state
         self._errors = []
         self._stats = {"total_files": 0, "parsed": 0, "skipped": 0, "errors": 0}
+        self._temp_extract_dir = None
 
-        # Estimate total for progress
-        estimated_total = self._estimate_total_files(root_path)
+        try:
+            # Handle ZIP extraction if needed
+            parse_path = self._prepare_path(root_path)
 
-        # Load location history if available
-        location_path = root_path / "location_history.json"
-        if location_path.exists():
-            self._load_location_history(location_path)
+            # Estimate total for progress
+            estimated_total = self._estimate_total_files(parse_path)
 
-        # Parse memories
-        memories_path = root_path / "memories_history.json"
-        if memories_path.exists():
-            logger.debug("Parsing memories_history.json")
-            memories_items = self._parse_memories_history(
-                memories_path,
-                root_path / "memories",
-            )
-            all_items.extend(memories_items)
+            # Load location history if available
+            location_path = parse_path / "location_history.json"
+            if location_path.exists():
+                self._load_location_history(location_path)
 
-            if progress_callback:
-                progress_callback(len(all_items), estimated_total)
+            # Parse memories
+            memories_path = parse_path / "memories_history.json"
+            if memories_path.exists():
+                logger.debug("Parsing memories_history.json")
+                memories_items = self._parse_memories_history(
+                    memories_path,
+                    parse_path / "memories",
+                )
+                all_items.extend(memories_items)
 
-        # Parse chat history
-        chat_path = root_path / "chat_history"
-        if chat_path.exists() and chat_path.is_dir():
-            logger.debug("Parsing chat_history/")
-            chat_items = self._parse_chat_history(chat_path)
-            all_items.extend(chat_items)
+                if progress_callback:
+                    progress_callback(len(all_items), estimated_total)
 
-            if progress_callback:
-                progress_callback(len(all_items), estimated_total)
+            # Parse chat history
+            chat_path = parse_path / "chat_history"
+            if chat_path.exists() and chat_path.is_dir():
+                logger.debug("Parsing chat_history/")
+                chat_items = self._parse_chat_history(chat_path)
+                all_items.extend(chat_items)
 
-        # Parse snap history
-        snap_history_path = root_path / "snap_history"
-        if snap_history_path.exists():
-            logger.debug("Parsing snap_history/")
-            snap_items = self._parse_snap_history(snap_history_path)
-            all_items.extend(snap_items)
+                if progress_callback:
+                    progress_callback(len(all_items), estimated_total)
 
-            if progress_callback:
-                progress_callback(len(all_items), estimated_total)
+            # Parse snap history
+            snap_history_path = parse_path / "snap_history"
+            if snap_history_path.exists():
+                logger.debug("Parsing snap_history/")
+                snap_items = self._parse_snap_history(snap_history_path)
+                all_items.extend(snap_items)
 
-        # Parse standalone memories folder if no JSON
-        if not memories_path.exists():
-            memories_dir = root_path / "memories"
-            if memories_dir.exists():
-                logger.debug("Parsing memories/ folder directly")
-                media_items = self._parse_media_folder(memories_dir)
-                all_items.extend(media_items)
+                if progress_callback:
+                    progress_callback(len(all_items), estimated_total)
+
+            # Parse standalone memories folder if no JSON
+            if not memories_path.exists():
+                memories_dir = parse_path / "memories"
+                if memories_dir.exists():
+                    logger.debug("Parsing memories/ folder directly")
+                    media_items = self._parse_media_folder(media_dir)
+                    all_items.extend(media_items)
+
+        except Exception as e:
+            self._log_error(f"Fatal error during Snapchat parse: {e}")
+            logger.exception("Snapchat parse failed")
+        finally:
+            self._cleanup_temp_dir()
 
         duration = time.time() - start_time
         logger.info(f"Snapchat parse complete: {len(all_items)} items in {duration:.2f}s")
 
         return self._create_parse_result(all_items, duration)
+
+    def _prepare_path(self, root_path: Path) -> Path:
+        """Prepare the path for parsing, extracting archives if necessary.
+
+        Args:
+            root_path: Input path (directory or ZIP file).
+
+        Returns:
+            The path to the directory containing the data to be parsed.
+        """
+        # If it's a directory, check for snapchat zips inside
+        if root_path.is_dir():
+            snap_zips = detect_archives_in_directory(root_path)
+            if any("snapchat" in z.name.lower() for z in snap_zips):
+                first_zip = next(z for z in snap_zips if "snapchat" in z.name.lower())
+                logger.info(f"Extracting Snapchat archive from directory: {first_zip.name}")
+                self._temp_extract_dir = extract_archive(first_zip)
+                return self._temp_extract_dir
+            return root_path
+
+        # If it's a ZIP file, extract it
+        if root_path.is_file() and root_path.suffix.lower() == ".zip":
+            logger.info(f"Extracting Snapchat archive: {root_path.name}")
+            try:
+                self._temp_extract_dir = extract_archive(root_path)
+                return self._temp_extract_dir
+            except ArchiveExtractionError as e:
+                self._log_error(f"Failed to extract Snapchat archive: {e}")
+                raise
+
+        return root_path
+
+    def _cleanup_temp_dir(self) -> None:
+        """Clean up the temporary extraction directory if it exists."""
+        if self._temp_extract_dir and self._temp_extract_dir.exists():
+            logger.debug(f"Cleaning up temporary directory: {self._temp_extract_dir}")
+            try:
+                import shutil
+
+                shutil.rmtree(self._temp_extract_dir, ignore_errors=True)
+                self._temp_extract_dir = None
+            except Exception as e:
+                logger.warning(f"Failed to cleanup temp dir {self._temp_extract_dir}: {e}")
 
     # =========================================================================
     # Private Parsing Methods
