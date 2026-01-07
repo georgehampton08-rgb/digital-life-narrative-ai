@@ -1,22 +1,27 @@
 # Contributing to Digital Life Narrative AI
 
-Thank you for your interest in contributing! This document provides guidelines for contributing to the project.
+Welcome, and thank you for considering contributing to Digital Life Narrative AI! 🎉
+
+This project reconstructs life narratives from scattered media exports using Google's Gemini AI. It started as a hackathon project with room to grow — your contributions can make a real difference.
 
 ---
 
-## Table of Contents
+## Valuable Contribution Areas
 
-- [Getting Started](#getting-started)
-- [Development Setup](#development-setup)
-- [Making Changes](#making-changes)
-- [Code Standards](#code-standards)
-- [Testing](#testing)
-- [Adding New Platforms](#adding-new-platforms)
-- [Pull Request Process](#pull-request-process)
+We especially welcome contributions in these areas:
+
+| Area | Impact | Difficulty |
+| ---- | ------ | ---------- |
+| 🆕 **New platform parsers** | High — unlock more data sources | Medium |
+| 🛡️ **Safety heuristics** | High — protect user privacy | Medium |
+| 🧠 **Prompt engineering** | High — improve narrative quality | Medium |
+| 🎨 **HTML report UI/UX** | Medium — better user experience | Low-Medium |
+| 📚 **Documentation & examples** | Medium — help new users | Low |
+| 🧪 **Test coverage** | Medium — catch bugs early | Low |
 
 ---
 
-## Getting Started
+## Development Setup
 
 ### Prerequisites
 
@@ -24,292 +29,570 @@ Thank you for your interest in contributing! This document provides guidelines f
 - **Poetry** (recommended) or pip
 - **Git**
 
-### Fork and Clone
+### Setup Steps
 
 ```bash
-# Fork the repository on GitHub, then clone your fork
-git clone https://github.com/YOUR_USERNAME/digital-life-narrative-ai.git
+# Clone the repository
+git clone https://github.com/georgehampton08-rgb/digital-life-narrative-ai.git
 cd digital-life-narrative-ai
-```
 
----
-
-## Development Setup
-
-### Using Poetry (Recommended)
-
-```bash
 # Install dependencies
-poetry install
+make install
 
-# Activate virtual environment
-poetry shell
-
-# Verify installation
-python -c "from src.config import AppConfig; print('Setup OK!')"
+# Verify setup
+make test
 ```
 
-### Using pip
+### Optional: Full Testing with AI
 
 ```bash
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # Linux/macOS
-# or: .\venv\Scripts\activate  # Windows
+# Set up API key for AI integration tests
+organizer config set-key
 
-# Install editable package
-pip install -e .
-```
-
----
-
-## Making Changes
-
-### 1. Create a Feature Branch
-
-```bash
-git checkout -b feature/your-feature-name
-# or for bug fixes:
-git checkout -b fix/bug-description
-```
-
-### 2. Make Your Changes
-
-Edit the files in `src/` for source code changes.
-
-### 3. Test Your Changes
-
-```bash
-# Run all tests
-python -m pytest tests/ --override-ini="addopts=" -v
-
-# Run specific tests
-python -m pytest tests/test_core_models.py --override-ini="addopts=" -v
-```
-
-### 4. Format and Lint
-
-```bash
-# Format code
-black src tests
-
-# Lint
-ruff check src tests --fix
-
-# Type check (optional)
-mypy src
+# Run demo with AI (requires API key)
+make demo-ai
 ```
 
 ---
 
 ## Code Standards
 
-### Style Guide
+### Type Hints
 
-- **Formatter**: [Black](https://github.com/psf/black) with default settings
-- **Linter**: [Ruff](https://github.com/astral-sh/ruff)
-- **Type Hints**: Use type hints for all function signatures
-- **Docstrings**: Google-style docstrings for public functions/classes
-
-### Example
+Required for all functions and methods. Use modern Python 3.10+ syntax:
 
 ```python
+# ✅ Good
 def process_memories(
     memories: list[Memory],
     config: AnalysisConfig | None = None,
 ) -> LifeStoryReport:
-    """Process a list of memories into a life story report.
+    ...
+
+# ❌ Bad
+def process_memories(memories, config=None):
+    ...
+```
+
+### Docstrings
+
+Google style, required for all public functions and classes:
+
+```python
+def analyze_timeline(
+    memories: list[Memory],
+    gap_threshold_days: int = 30,
+) -> TimelineAnalysis:
+    """Analyze a timeline of memories for patterns and gaps.
+    
+    Identifies significant gaps, clusters of activity, and temporal
+    patterns across the memory collection.
     
     Args:
         memories: List of Memory objects to analyze.
-        config: Optional analysis configuration. Uses defaults if not provided.
+        gap_threshold_days: Minimum days between memories to flag as a gap.
     
     Returns:
-        LifeStoryReport containing the complete analysis.
+        TimelineAnalysis containing gaps, patterns, and statistics.
     
     Raises:
         ValueError: If memories list is empty.
+    
+    Example:
+        >>> analysis = analyze_timeline(memories, gap_threshold_days=14)
+        >>> print(f"Found {len(analysis.gaps)} significant gaps")
     """
-    if not memories:
-        raise ValueError("At least one memory is required")
-    # ...
 ```
 
-### Project Structure
-
-```text
-src/
-├── core/           # Data models (Memory, Timeline, Privacy)
-├── parsers/        # Platform-specific parsers
-├── ai/             # AI integration (client, analyzer, prompts)
-├── output/         # Report generators
-├── cli/            # CLI commands
-└── config.py       # Configuration management
-```
-
----
-
-## Testing
-
-### Test Organization
-
-| Test File | Coverage |
-| --------- | -------- |
-| `test_core_models.py` | Core data models and enums |
-| `test_memory.py` | Memory model edge cases |
-| `test_detection_and_parsers.py` | Source detection and parsers |
-| `test_ai_and_safety.py` | AI integration and content safety |
-| `test_cli_and_report.py` | CLI commands and HTML reports |
-| `test_src_ai_client.py` | AI client with mocked Gemini API |
-
-### Writing Tests
-
-```python
-import pytest
-from src.core.memory import Memory, SourcePlatform, MediaType
-
-class TestMemoryCreation:
-    """Tests for Memory object creation."""
-    
-    def test_minimal_valid_memory(self):
-        """Memory can be created with minimal required fields."""
-        memory = Memory(source_platform=SourcePlatform.UNKNOWN)
-        assert memory.id is not None
-        assert memory.source_platform == SourcePlatform.UNKNOWN
-    
-    def test_memory_with_location(self, sample_location):
-        """Memory correctly stores location data."""
-        memory = Memory(
-            source_platform=SourcePlatform.GOOGLE_PHOTOS,
-            location=sample_location,
-        )
-        assert memory.location.city == sample_location.city
-```
-
-### Running Tests
+### Formatting & Linting
 
 ```bash
-# All tests
-python -m pytest tests/ --override-ini="addopts="
+# Run all checks (lint + format check + test)
+make ci
 
-# With verbose output
-python -m pytest tests/ -v --tb=short --override-ini="addopts="
+# Format code automatically
+make format
 
-# Specific test class
-python -m pytest tests/test_memory.py::TestMemoryCreation --override-ini="addopts="
+# Run linting only
+make lint
+```
+
+### Testing
+
+- **Required** for new features
+- **Mock all external services** (never call real APIs in tests)
+- **Aim for meaningful coverage**, not 100%
+
+### Pydantic Models
+
+Use Pydantic for all data models:
+
+```python
+from pydantic import BaseModel, Field, field_validator
+
+class ChapterConfig(BaseModel):
+    """Configuration for chapter detection."""
+    
+    min_chapters: int = Field(default=3, ge=1, le=50)
+    max_chapters: int = Field(default=15, ge=1, le=50)
+    
+    @field_validator("max_chapters")
+    @classmethod
+    def max_greater_than_min(cls, v: int, info) -> int:
+        if v < info.data.get("min_chapters", 1):
+            raise ValueError("max_chapters must be >= min_chapters")
+        return v
 ```
 
 ---
 
-## Adding New Platforms
+## Adding a New Parser
 
-To add support for a new platform (e.g., TikTok, Instagram), follow these steps:
+This is one of the highest-impact contributions! Follow these steps:
 
-### 1. Add Platform to Enum
+### Step 1: Understand the Contract
+
+Review these files first:
+
+- `src/parsers/base.py` — BaseParser abstract class
+- `src/core/memory.py` — Memory model (your output format)
+- `src/parsers/snapchat.py` — Example implementation
+
+### Step 2: Create the Parser File
+
+```bash
+# Create new parser file
+touch src/parsers/tiktok.py
+```
+
+### Step 3: Implement Required Methods
+
+```python
+# src/parsers/tiktok.py
+"""Parser for TikTok data exports."""
+
+from pathlib import Path
+from typing import Callable
+
+from src.parsers.base import BaseParser, ParseResult, register_parser
+from src.core.memory import Memory, SourcePlatform, MediaType
+
+
+@register_parser
+class TikTokParser(BaseParser):
+    """Parser for TikTok data export archives."""
+    
+    PLATFORM = SourcePlatform.TIKTOK
+    PLATFORM_DISPLAY_NAME = "TikTok"
+    
+    @classmethod
+    def get_signature_files(cls) -> list[str]:
+        """Return files that identify a TikTok export."""
+        return [
+            "Video/Videos.json",
+            "Activity/Video Browsing History.json",
+        ]
+    
+    @classmethod
+    def can_parse(cls, root: Path) -> bool:
+        """Check if this looks like a TikTok export."""
+        for sig in cls.get_signature_files():
+            if (root / sig).exists():
+                return True
+        return False
+    
+    def parse(
+        self,
+        root: Path,
+        progress_callback: Callable[[str, int, int], None] | None = None,
+    ) -> ParseResult:
+        """Parse TikTok export into Memory objects."""
+        memories: list[Memory] = []
+        warnings: list[str] = []
+        
+        # Parse posted videos
+        videos_file = root / "Video" / "Videos.json"
+        if videos_file.exists():
+            videos = self._parse_videos(videos_file)
+            memories.extend(videos)
+        
+        # ... more parsing logic ...
+        
+        return ParseResult(
+            memories=memories,
+            warnings=warnings,
+            source_platform=self.PLATFORM,
+        )
+    
+    def _parse_videos(self, path: Path) -> list[Memory]:
+        """Parse video metadata from Videos.json."""
+        # Implementation...
+        pass
+```
+
+### Step 4: Add Platform to Enum
 
 ```python
 # src/core/memory.py
 class SourcePlatform(str, Enum):
+    """Supported data export sources."""
+    UNKNOWN = "unknown"
+    LOCAL_PHOTOS = "local_photos"
+    SNAPCHAT = "snapchat"
+    GOOGLE_PHOTOS = "google_photos"
+    TIKTOK = "tiktok"  # ← Add your platform
+```
+
+### Step 5: Add Detection Fingerprints
+
+```python
+# src/detection.py - update PLATFORM_SIGNATURES
+PLATFORM_SIGNATURES = {
     # ... existing platforms ...
-    TIKTOK = "tiktok"
+    SourcePlatform.TIKTOK: [
+        "Video/Videos.json",
+        "Activity/Video Browsing History.json",
+    ],
+}
 ```
 
-### 2. Create Parser
+### Step 6: Write Tests
 
 ```python
-# src/parsers/tiktok.py
-from src.parsers.base import BaseParser, ParserResult
-from src.core.memory import Memory, SourcePlatform
+# tests/test_detection_and_parsers.py
 
-class TikTokParser(BaseParser):
-    """Parser for TikTok data exports."""
-    
-    PLATFORM = SourcePlatform.TIKTOK
-    
-    @classmethod
-    def can_parse(cls, path: Path) -> bool:
-        """Check if path looks like a TikTok export."""
-        # Look for TikTok-specific files
-        return (path / "Video" / "Videos.json").exists()
-    
-    def parse(self, path: Path) -> ParserResult:
-        """Parse TikTok export into Memory objects."""
-        # Implementation...
-```
-
-### 3. Register Parser
-
-```python
-# src/parsers/__init__.py
-from src.parsers.tiktok import TikTokParser
-
-PARSERS = [
-    # ... existing parsers ...
-    TikTokParser,
-]
-```
-
-### 4. Add Tests
-
-```python
-# tests/test_parsers.py
 class TestTikTokParser:
-    def test_can_parse_valid_export(self, tiktok_export_fixture):
-        assert TikTokParser.can_parse(tiktok_export_fixture)
+    """Tests for TikTok parser."""
     
-    def test_parse_extracts_memories(self, tiktok_export_fixture):
+    def test_can_parse_valid_export(self, tiktok_export_dir):
+        """Parser correctly identifies TikTok exports."""
+        assert TikTokParser.can_parse(tiktok_export_dir)
+    
+    def test_can_parse_rejects_invalid(self, empty_dir):
+        """Parser rejects non-TikTok directories."""
+        assert not TikTokParser.can_parse(empty_dir)
+    
+    def test_parse_extracts_videos(self, tiktok_export_dir):
+        """Parser extracts video memories."""
         parser = TikTokParser()
-        result = parser.parse(tiktok_export_fixture)
+        result = parser.parse(tiktok_export_dir)
+        
         assert len(result.memories) > 0
+        assert all(m.source_platform == SourcePlatform.TIKTOK for m in result.memories)
+    
+    def test_parse_handles_missing_files(self, partial_tiktok_export):
+        """Parser handles missing optional files gracefully."""
+        parser = TikTokParser()
+        result = parser.parse(partial_tiktok_export)
+        
+        # Should not raise, may have warnings
+        assert isinstance(result.warnings, list)
 ```
 
-See [ARCHITECTURE.md](ARCHITECTURE.md#adding-new-platforms) for detailed guidance.
+Add fixtures in `tests/conftest.py`:
+
+```python
+@pytest.fixture
+def tiktok_export_dir(tmp_path: Path) -> Path:
+    """Create a mock TikTok export structure."""
+    video_dir = tmp_path / "Video"
+    video_dir.mkdir()
+    
+    videos_json = video_dir / "Videos.json"
+    videos_json.write_text(json.dumps({
+        "VideoList": [
+            {"Date": "2023-06-15", "Link": "..."},
+        ]
+    }))
+    
+    return tmp_path
+```
+
+### Step 7: Document
+
+Update `README.md` supported platforms table:
+
+```markdown
+| Platform | Status | Notes |
+| -------- | ------ | ----- |
+| 📱 TikTok | ✅ Supported | Posted videos, browsing history |
+```
 
 ---
 
-## Pull Request Process
+## Modifying AI Behavior
 
-### 1. Before Submitting
+### Prompt Templates
+
+Located in `src/ai/prompts.py`. Each prompt has a version and category:
+
+```python
+CHAPTER_DETECTION_PROMPT = PromptTemplate(
+    name="chapter_detection",
+    version="1.2",
+    system_prompt="""You are analyzing a life timeline...""",
+    user_prompt_template="""Here are the memories: {memories_json}""",
+)
+```
+
+When modifying prompts:
+
+- Increment version number
+- Document why you made the change
+- Test with real data if possible
+
+### Adding New AI Calls
+
+Always go through `AIClient`:
+
+```python
+# ✅ Good - use AIClient
+from src.ai.client import get_client
+
+client = get_client()
+response = await client.generate(prompt, system=system_prompt)
+
+# ❌ Bad - never import directly
+import google.generativeai  # NO!
+```
+
+### Token Management
+
+```python
+# Estimate tokens before sending
+from src.ai.client import estimate_tokens
+
+estimated = estimate_tokens(prompt_text)
+if estimated > MAX_TOKENS:
+    # Sample or chunk the data
+    sampled = sample_memories(memories, max_count=500)
+```
+
+### Privacy Considerations
+
+**Critical**: All data must go through privacy filtering:
+
+```python
+# ✅ Good - use privacy-safe payload
+from src.core.privacy import PrivacyGate
+
+gate = PrivacyGate(settings)
+safe_payload = gate.filter_for_ai(memories)
+
+# ❌ Bad - sending raw data
+payload = {"paths": [str(m.source_path) for m in memories]}  # NO!
+```
+
+### Testing AI Code
+
+```python
+def test_chapter_detection_parses_response(self, mock_ai_client):
+    """AI correctly parses chapter detection response."""
+    mock_ai_client.generate.return_value = """
+    {
+        "chapters": [
+            {"title": "College Years", "start": "2018-01", "end": "2022-05"}
+        ]
+    }
+    """
+    
+    analyzer = LifeStoryAnalyzer(client=mock_ai_client)
+    chapters = analyzer._detect_chapters(timeline, context)
+    
+    assert len(chapters) == 1
+    assert chapters[0].title == "College Years"
+```
+
+---
+
+## Working with Safety & Privacy
+
+### Critical Rules
+
+> ⚠️ **These rules are non-negotiable**
+
+1. **Never bypass ContentFilter** for report generation
+2. **Never log sensitive content** (captions, paths, personal info)
+3. **Never send pixel data** without explicit consent check
+4. **Always use debug-level logging** for potentially sensitive operations
+
+### Adding Safety Categories
+
+1. Add to enum in `src/core/safety.py`:
+
+```python
+class SafetyCategory(str, Enum):
+    """Categories of potentially sensitive content."""
+    EXPLICIT = "explicit"
+    VIOLENCE = "violence"
+    PERSONAL_INFO = "personal_info"
+    FINANCIAL = "financial"  # ← New category
+```
+
+1. Add detection in `ContentFilter`:
+
+```python
+def _check_financial(self, memory: Memory) -> SafetyFlag | None:
+    """Check for financial information in content."""
+    patterns = [r'\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b']  # Card numbers
+    # ...
+```
+
+1. Add tests:
+
+```python
+def test_detects_credit_card_numbers(self):
+    """Filter detects credit card patterns."""
+    memory = Memory(caption="My card is 1234-5678-9012-3456")
+    flag = filter._check_financial(memory)
+    assert flag is not None
+    assert flag.category == SafetyCategory.FINANCIAL
+```
+
+### Adding Privacy Controls
+
+1. Add to `PrivacySettings` in `src/core/privacy.py`
+2. Update `PrivacyGate.filter_for_ai()` to respect new setting
+3. Document in `PRIVACY.md`
+
+---
+
+## HTML Report Improvements
+
+### Structure
+
+- Templates in `src/output/html_report.py`
+- CSS/JS embedded (self-contained output)
+- Jinja2 templating
+
+### Constraints
+
+| Requirement | Why |
+| ----------- | --- |
+| **Works offline** | Users may not have internet |
+| **No external dependencies** | CDNs can go down |
+| **Responsive design** | Mobile viewing |
+| **Accessible** | Semantic HTML, good contrast |
+
+### Testing Report Changes
+
+```bash
+# Generate test report
+python -m demo.generate_demo_data --output ./demo_data
+organizer analyze -i ./demo_data -o ./test_report.html --no-ai
+
+# Test in multiple browsers
+# Test mobile viewport (Chrome DevTools)
+# Check accessibility (Lighthouse)
+```
+
+---
+
+## Hackathon vs Production Quality
+
+### Hackathon-Quality (Acceptable Now)
+
+- ✅ Working over perfect
+- ✅ Good enough error handling
+- ✅ Basic test coverage
+- ✅ Core functionality documented
+
+### Production-Quality (Aspirational)
+
+- 🎯 Comprehensive error handling
+- 🎯 Full test coverage
+- 🎯 Performance optimization
+- 🎯 Extensive documentation
+
+### Large Refactors
+
+If you're proposing significant architectural changes:
+
+1. **Open an issue first** describing the problem
+2. **Discuss approach** before implementing
+3. **Get buy-in** from maintainers
+4. **Implement incrementally** if possible
+
+---
+
+## Submitting Pull Requests
+
+### Before Submitting
 
 - [ ] Tests pass: `python -m pytest tests/ --override-ini="addopts="`
-- [ ] Code formatted: `black src tests`
-- [ ] Linting clean: `ruff check src tests`
-- [ ] Docstrings added for new public functions
+- [ ] Linting passes: `black src tests && ruff check src tests`
+- [ ] New code has docstrings
 - [ ] Documentation updated if needed
 
-### 2. PR Title Format
+### PR Title Format
 
-Use conventional commit format:
+Use conventional commits:
 
-- `feat: Add TikTok parser`
-- `fix: Handle missing EXIF timestamps`
-- `docs: Update privacy documentation`
-- `refactor: Simplify cache validation`
-- `test: Add timeline gap detection tests`
+```text
+feat: Add TikTok parser
+fix: Handle missing EXIF timestamps  
+docs: Update privacy documentation
+refactor: Simplify cache validation
+test: Add timeline gap detection tests
+chore: Update dependencies
+```
 
-### 3. PR Description
+### PR Description Template
+
+```markdown
+## What
+Brief description of changes.
+
+## Why
+Motivation for the change.
+
+## How to Test
+Steps to verify the changes work.
+
+## Breaking Changes
+Any breaking changes (or "None").
+
+## Checklist
+- [ ] Tests added/updated
+- [ ] Documentation updated
+- [ ] Linting passes
+```
+
+### Review Process
+
+1. Maintainer will review within a few days
+2. Address feedback in new commits
+3. Discussion happens in PR comments
+4. Squash merge when approved
+
+---
+
+## Getting Help
+
+### Where to Ask Questions
+
+- **GitHub Issues**: Open with "question" label
+- **Discussions**: Use GitHub Discussions for broader topics
+
+### When Asking for Help
 
 Include:
 
-- **What**: Brief description of changes
-- **Why**: Motivation for the change
-- **How**: Key implementation details
-- **Testing**: How you verified the changes
+- What you're trying to do
+- What you've tried
+- Relevant code snippets
+- Full error messages
 
-### 4. Review Process
+### Useful Resources
 
-- PRs require at least one approval
-- Address feedback promptly
-- Keep PRs focused — prefer multiple small PRs over one large one
-
----
-
-## Questions?
-
-- **Issues**: [GitHub Issues](https://github.com/georgehampton08-rgb/digital-life-narrative-ai/issues)
-- **Discussions**: Use GitHub Discussions for questions
-- **Email**: <georgehampton08@gmail.com>
+- [ARCHITECTURE.md](ARCHITECTURE.md) — Technical deep-dive
+- [PRIVACY.md](PRIVACY.md) — Privacy and security rules
+- [demo/DEMO.md](demo/DEMO.md) — Running the demo
 
 ---
 
-**Thank you for contributing! 🎉**
+## Thank You
+
+Every contribution matters — whether it's fixing a typo, adding a test, or implementing a new parser. Thank you for helping make this project better! 🙏
+
+*Questions? Open an issue or reach out to <georgehampton08@gmail.com>*

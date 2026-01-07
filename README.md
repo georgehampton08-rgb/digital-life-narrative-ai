@@ -2,6 +2,7 @@
 
 > AI-powered analysis of your scattered media exports to reconstruct your life's narrative
 
+[![CI](https://github.com/georgehampton08-rgb/digital-life-narrative-ai/actions/workflows/ci.yml/badge.svg)](https://github.com/georgehampton08-rgb/digital-life-narrative-ai/actions/workflows/ci.yml)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
@@ -78,14 +79,13 @@ We don't pretend rules can do what AI does. In fallback mode, you get statistics
 
 ### Installation
 
-```bash
-# Using pip
-pip install digital-life-narrative-ai
+For detailed instructions including Docker and system-specific prerequisites, see the **[INSTALL.md](./INSTALL.md)** guide.
 
-# Or using Poetry (recommended for development)
-git clone https://github.com/georgehampton08-rgb/digital-life-narrative-ai.git
+```bash
+# Fastest path:
+git clone --depth=1 https://github.com/georgehampton08-rgb/digital-life-narrative-ai.git
 cd digital-life-narrative-ai
-poetry install
+pip install -e .
 ```
 
 ### Set Up Your API Key

@@ -118,6 +118,8 @@ Open `demo_report_ai.html` in your browser.
 
 **Compare this to the fallback report** — the difference demonstrates why AI is the core value proposition.
 
+> 💡 **Tip**: Results are cached locally. Run the same command again and it returns instantly from cache!
+
 ---
 
 ## What to Look For
@@ -222,4 +224,4 @@ organizer config show
 
 ---
 
-*Happy demoing! 🎬*
+Happy demoing! 🎬
