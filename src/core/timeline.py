@@ -40,7 +40,7 @@ from typing import Any, Callable, Iterator, Literal
 
 from pydantic import BaseModel, Field, computed_field
 
-from src.core.memory import (
+from src.core.models import (
     ConfidenceLevel,
     Location,
     MediaType,

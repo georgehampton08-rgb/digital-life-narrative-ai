@@ -19,9 +19,14 @@ Exports:
 from src.ai.analyzer import (
     # Analyzer
     LifeStoryAnalyzer,
+    AnalysisProgress,
     # Report models
     LifeStoryReport,
     LifeChapter,
+    PlatformBehaviorInsight,
+    DataGap,
+    # Config
+    AnalysisConfig,
     # Exceptions
     AnalysisError,
     InsufficientDataError,
@@ -56,8 +61,12 @@ from src.ai.client import (
 __all__ = [
     # Analyzer
     "LifeStoryAnalyzer",
+    "AnalysisProgress",
     "LifeStoryReport",
     "LifeChapter",
+    "PlatformBehaviorInsight",
+    "DataGap",
+    "AnalysisConfig",
     "AnalysisError",
     "InsufficientDataError",
     # Client

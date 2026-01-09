@@ -17,7 +17,7 @@ import pytest
 from click.testing import CliRunner
 
 # AI Models for mocking
-from src.ai.life_analyzer import LifeChapter, LifeStoryReport
+from src.ai import LifeChapter, LifeStoryReport
 
 # CLI entry point
 from src.cli.main import organizer

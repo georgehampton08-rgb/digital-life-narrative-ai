@@ -22,11 +22,11 @@ from PIL import Image
 from src.ai.client import AIRateLimitError, AIResponse, AIUnavailableError, StructuredAIResponse
 
 # AI Models
-from src.ai.life_analyzer import (
-    DataGap,
+from src.ai import (
+    AIResponse,
     LifeChapter,
     LifeStoryReport,
-    PlatformBehaviorInsight,
+    StructuredResponse,
 )
 
 # Core Models

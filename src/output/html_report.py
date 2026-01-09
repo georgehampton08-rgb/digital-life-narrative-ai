@@ -27,12 +27,76 @@ except ImportError:
     Image = None
 
 # Imports will be available after other modules are created
-# from src.ai.life_analyzer import LifeStoryReport, AnalysisConfig
+# from src.ai import LifeStoryReport, LifeChapter
 # from src.core.memory import Memory, MediaType, SourcePlatform
 # from src.core.chapter import LifeChapter, DateRange
 # from src.core.safety import MemorySafetyState, SafetyAction, get_display_treatment, SafetySettings
 
 logger = logging.getLogger(__name__)
+
+# Emoji Mappings for Visual Context
+SCENE_EMOJI = {
+    "home": "🏠",
+    "office": "🏢",
+    "restaurant": "🍽️",
+    "cafe": "☕",
+    "nature": "🌲",
+    "beach": "🏖️",
+    "city": "🏙️",
+    "urban": "🏙️",
+    "indoor": "🏠",
+    "outdoor": "🌲",
+    "park": "🌳",
+    "street": "🛣️",
+    "transport": "🚗",
+    "school": "🏫",
+    "gym": "💪",
+    "venue": "🎪",
+    "concert": "🎸",
+    "theater": "🎭",
+    "museum": "🏛️",
+    "store": "🛒",
+    "market": "🛍️",
+    "airport": "✈️",
+    "station": "🚉",
+    "waterfront": "🌊",
+}
+
+VIBE_EMOJI = {
+    "adventure": "🧭",
+    "social": "👥",
+    "calm": "🧘",
+    "reflective": "💭",
+    "professional": "💼",
+    "energetic": "⚡",
+    "nostalgic": "🕰️",
+    "creative": "🎨",
+    "festive": "🎉",
+    "intimate": "❤️",
+    "cozy": "🧶",
+    "modern": "✨",
+    "rustic": "🪵",
+    "official": "🏛️",
+}
+
+MOTIF_EMOJI = {
+    "phone": "📱",
+    "laptop": "💻",
+    "coffee": "☕",
+    "food": "🥘",
+    "drink": "🍹",
+    "pet": "🐾",
+    "dog": "🐶",
+    "cat": "🐱",
+    "car": "🚗",
+    "book": "📖",
+    "music": "🎵",
+    "art": "🖼️",
+    "plant": "🌱",
+    "sun": "☀️",
+    "mountain": "⛰️",
+    "water": "💧",
+}
 
 
 # =============================================================================
@@ -481,6 +545,159 @@ footer {
         page-break-inside: avoid;
     }
 }
+
+/* Visual Enhancements */
+.thumbnail-strip {
+    display: flex;
+    gap: 0.5rem;
+    margin: 1rem 0;
+    overflow-x: auto;
+    padding-bottom: 0.5rem;
+    scrollbar-width: thin;
+}
+
+.thumbnail-strip::-webkit-scrollbar {
+    height: 4px;
+}
+
+.thumbnail-strip::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 4px;
+}
+
+.clickable-thumbnail {
+    width: 80px;
+    height: 80px;
+    min-width: 80px;
+    border-radius: 0.5rem;
+    object-fit: cover;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    border: 2px solid transparent;
+}
+
+.clickable-thumbnail:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px var(--shadow);
+    border-color: var(--primary);
+}
+
+.visual-themes {
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+    border-top: 1px dashed var(--border);
+}
+
+.theme-group {
+    margin-bottom: 1rem;
+}
+
+.theme-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+    margin-bottom: 0.5rem;
+    display: block;
+}
+
+.theme-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.vibe-badge {
+    background: rgba(99, 102, 241, 0.1);
+    color: var(--primary);
+    border: 1px solid rgba(99, 102, 241, 0.2);
+}
+
+.scene-badge {
+    background: rgba(16, 185, 129, 0.1);
+    color: var(--success);
+    border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.motif-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+.motif-item {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+/* Metadata Panel */
+.analysis-metadata {
+    background: var(--bg-tertiary);
+    border-radius: var(--radius);
+    padding: 1rem;
+    margin-top: 1rem;
+    font-size: 0.85rem;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 0.75rem;
+}
+
+.metadata-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.25rem 0;
+    border-bottom: 1px solid rgba(0,0,0,0.05);
+}
+
+.metadata-label {
+    color: var(--text-secondary);
+}
+
+.metadata-value {
+    font-weight: 600;
+}
+
+/* Lightbox */
+.lightbox {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.9);
+    z-index: 2000;
+    cursor: zoom-out;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+}
+
+.lightbox.active {
+    display: flex;
+}
+
+.lightbox img {
+    max-width: 90%;
+    max-height: 90%;
+    object-fit: contain;
+    border-radius: 4px;
+    box-shadow: 0 0 40px rgba(0,0,0,0.5);
+}
+
+.lightbox-close {
+    position: absolute;
+    top: 1.5rem;
+    right: 1.5rem;
+    color: white;
+    font-size: 2rem;
+    cursor: pointer;
+}
+
+.timeline-vibe-warm { background: #f59e0b; }
+.timeline-vibe-cool { background: #6366f1; }
+.timeline-vibe-nature { background: #10b981; }
+.timeline-vibe-neutral { background: #9ca3af; }
 """
 
 
@@ -565,7 +782,35 @@ function showToast(message) {
 // Initialize on load
 document.addEventListener('DOMContentLoaded', () => {
     initTheme();
+    initLightbox();
 });
+
+// Lightbox functionality
+function initLightbox() {
+    const lightbox = document.createElement('div');
+    lightbox.className = 'lightbox';
+    lightbox.innerHTML = `
+        <span class="lightbox-close">&times;</span>
+        <img src="" alt="Enlarged view">
+    `;
+    document.body.appendChild(lightbox);
+
+    lightbox.addEventListener('click', () => {
+        lightbox.classList.remove('active');
+    });
+
+    // Close on escape
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') lightbox.classList.remove('active');
+    });
+}
+
+function openLightbox(src) {
+    const lightbox = document.querySelector('.lightbox');
+    const img = lightbox.querySelector('img');
+    img.src = src;
+    lightbox.classList.add('active');
+}
 
 // Add CSS for animations
 const style = document.createElement('style');
@@ -590,6 +835,14 @@ style.textContent = `
             transform: translateX(100%);
             opacity: 0;
         }
+    }
+    
+    .timeline-marker {
+        transition: transform 0.2s, background 0.3s;
+    }
+    
+    .timeline-marker:hover {
+        transform: translate(-50%, -50%) scale(1.5);
     }
 `;
 document.head.appendChild(style);
@@ -695,6 +948,9 @@ class ReportConfig:
     safety_settings: Optional[Any] = None  # SafetySettings when available
     show_fallback_warning: bool = True
     show_generation_metadata: bool = True
+    show_thumbnails: bool = True
+    show_visual_summary: bool = True
+    show_cost_transparency: bool = True
     custom_css: Optional[str] = None
 
 
@@ -858,6 +1114,7 @@ class HTMLReportGenerator:
         is_fallback = getattr(report, "is_fallback", False)
         total_memories = getattr(report, "total_memories", 0)
         date_range = getattr(report, "date_range", None)
+        analysis_metadata = getattr(report, "analysis_metadata", {})
 
         fallback_warning = ""
         if is_fallback and self._config.show_fallback_warning:
@@ -870,6 +1127,38 @@ class HTMLReportGenerator:
             if start and end:
                 date_range_str = self._format_date_range(start, end)
 
+        # Meta Panel html
+        meta_panel = ""
+        if self._config.show_cost_transparency and analysis_metadata:
+            depth = analysis_metadata.get("depth_mode", "standard")
+            vision_model = analysis_metadata.get("vision_model", "gemini-2.0-flash-exp")
+            narrative_model = analysis_metadata.get("narrative_model", "gemini-2.0-flash-exp")
+            total_images = analysis_metadata.get("total_images_analyzed", 0)
+            est_cost = analysis_metadata.get("total_cost_usd", 0.0)
+            budget_cap = analysis_metadata.get("budget_cap_applied", False)
+            
+            meta_panel = f"""
+            <div class="analysis-metadata">
+                <div class="metadata-item">
+                    <span class="metadata-label">Analysis Depth</span>
+                    <span class="metadata-value">{depth.title()}</span>
+                </div>
+                <div class="metadata-item">
+                    <span class="metadata-label">Images Processed</span>
+                    <span class="metadata-value">{total_images}</span>
+                </div>
+                <div class="metadata-item">
+                    <span class="metadata-label">AI Model</span>
+                    <span class="metadata-value">{vision_model}</span>
+                </div>
+                <div class="metadata-item">
+                    <span class="metadata-label">Estimated Cost</span>
+                    <span class="metadata-value">{self._format_usd(est_cost)}</span>
+                </div>
+                {f'<div class="metadata-item"><span class="metadata-label">Budget Cap</span><span class="metadata-value">Applied</span></div>' if budget_cap else ''}
+            </div>
+            """
+
         return f"""
         <header>
             <div class="header-content">
@@ -879,6 +1168,7 @@ class HTMLReportGenerator:
                     {f'<span class="badge">{date_range_str}</span>' if date_range_str else ''}
                     <span class="badge badge-primary">{total_memories:,} memories</span>
                 </div>
+                {meta_panel}
                 {fallback_warning}
             </div>
         </header>
@@ -912,8 +1202,14 @@ class HTMLReportGenerator:
         for i, chapter in enumerate(chapters):
             position = (i / max(len(chapters) - 1, 1)) * 100
             title = getattr(chapter, "title", f"Chapter {i+1}")
+            
+            # Use visual vibe for color coding
+            visual_stats = getattr(chapter, "visual_stats", None)
+            vibes = getattr(visual_stats, "dominant_vibes", []) if visual_stats else []
+            vibe_class = self._get_vibe_class(vibes)
+            
             markers_html += f"""
-                <div class="timeline-marker" 
+                <div class="timeline-marker {vibe_class}" 
                      style="left: {position}%"
                      onclick="scrollToChapter('chapter-{i}')"
                      title="{html_lib.escape(title)}">
@@ -939,8 +1235,10 @@ class HTMLReportGenerator:
         narrative = getattr(chapter, "narrative", "")
         date_range = getattr(chapter, "date_range", None)
         insights = getattr(chapter, "insights", [])
-        themes = getattr(chapter, "themes", [])
-
+        
+        # New visual elements
+        thumbnail_paths = getattr(chapter, "thumbnail_paths", []) or []
+        
         date_range_str = ""
         if date_range:
             start = getattr(date_range, "start", None)
@@ -948,11 +1246,21 @@ class HTMLReportGenerator:
             if start and end:
                 date_range_str = self._format_date_range(start, end)
 
-        themes_html = ""
-        if themes:
-            themes_html = " ".join(
-                [f'<span class="badge">{html_lib.escape(str(t))}</span>' for t in themes[:5]]
-            )
+        # Render Thumbnails
+        thumbnails_html = ""
+        if self._config.show_thumbnails and thumbnail_paths:
+            thumbs = []
+            max_thumbs = self._config.max_thumbnails_per_chapter
+            for path in thumbnail_paths[:max_thumbs]:
+                data_uri = self._generate_thumbnail_data_uri(path, self._config.thumbnail_size)
+                if data_uri:
+                    thumbs.append(f'<img src="{data_uri}" class="clickable-thumbnail" onclick="openLightbox(\'{data_uri}\')" alt="Snapshot">')
+            
+            if thumbs:
+                thumbnails_html = f'<div class="thumbnail-strip">{" ".join(thumbs)}</div>'
+
+        # Render Visual Summary
+        visual_summary_html = self._render_visual_summary(chapter)
 
         insights_html = ""
         if insights:
@@ -961,7 +1269,7 @@ class HTMLReportGenerator:
             )
             insights_html = f"""
                 <div class="chapter-insights">
-                    <h3>Key Insights</h3>
+                    <h3>Contextual Insights</h3>
                     <ul>{insights_items}</ul>
                 </div>
             """
@@ -970,10 +1278,14 @@ class HTMLReportGenerator:
         <div class="chapter-card" id="chapter-{index}">
             <h3 class="chapter-title">{html_lib.escape(title)}</h3>
             {f'<p class="chapter-date-range">{date_range_str}</p>' if date_range_str else ''}
-            {themes_html}
+            
+            {thumbnails_html}
+            
             <div class="chapter-narrative">
                 {html_lib.escape(narrative)}
             </div>
+            
+            {visual_summary_html}
             {insights_html}
         </div>
         """
@@ -1073,11 +1385,99 @@ class HTMLReportGenerator:
         """Safely escape HTML."""
         return html_lib.escape(text)
 
-    def _truncate_text(self, text: str, max_length: int = 300) -> str:
-        """Truncate text with ellipsis."""
-        if len(text) <= max_length:
-            return text
-        return text[:max_length].rsplit(" ", 1)[0] + "..."
+    def _generate_thumbnail_data_uri(self, path: str, size: tuple[int, int]) -> Optional[str]:
+        """Load image, resize, and convert to base64 data URI."""
+        if Image is None:
+            return None
+        
+        try:
+            img_path = Path(path)
+            if not img_path.exists():
+                return None
+            
+            with Image.open(img_path) as img:
+                img.thumbnail(size)
+                # Convert to RGB if necessary
+                if img.mode in ("RGBA", "P"):
+                    img = img.convert("RGB")
+                    
+                buffered = io.BytesIO()
+                img.save(buffered, format="JPEG", quality=80)
+                img_str = base64.b64encode(buffered.getvalue()).decode()
+                return f"data:image/jpeg;base64,{img_str}"
+        except Exception as e:
+            logger.warning(f"Error generating thumbnail for {path}: {e}")
+            return None
+
+    def _render_visual_summary(self, chapter: Any) -> str:
+        """Render the visual themes section for a chapter."""
+        if not self._config.show_visual_summary:
+            return ""
+            
+        visual_stats = getattr(chapter, "visual_stats", None)
+        if not visual_stats:
+            return ""
+            
+        scenes = getattr(visual_stats, "dominant_scenes", [])
+        vibes = getattr(visual_stats, "dominant_vibes", [])
+        motifs = getattr(visual_stats, "recurring_motifs", [])
+        
+        if not (scenes or vibes or motifs):
+            return ""
+            
+        html = '<div class="visual-themes">'
+        
+        # Scenes
+        if scenes:
+            html += '<div class="theme-group"><span class="theme-label">Atmosphere & Setting</span><div class="theme-badges">'
+            for scene, count in scenes[:3]:
+                emoji = SCENE_EMOJI.get(scene.lower(), "📍")
+                html += f'<span class="badge scene-badge">{emoji} {scene.lower()}</span>'
+            html += '</div></div>'
+            
+        # Vibes
+        if vibes:
+            html += '<div class="theme-group"><span class="theme-label">Emotional Tone</span><div class="theme-badges">'
+            for vibe, count in vibes[:3]:
+                emoji = VIBE_EMOJI.get(vibe.lower(), "✨")
+                html += f'<span class="badge vibe-badge">{emoji} {vibe.lower()}</span>'
+            html += '</div></div>'
+            
+        # Motifs
+        if motifs:
+            html += '<div class="theme-group"><span class="theme-label">Visual Motifs</span><div class="motif-list">'
+            for motif, count in motifs[:6]:
+                # motif can be "coffee" or "coffee:3" or a tuple
+                motif_name = motif[0] if isinstance(motif, (list, tuple)) else str(motif).split(":")[0]
+                emoji = MOTIF_EMOJI.get(motif_name.lower(), "•")
+                html += f'<span class="motif-item">{emoji} {motif_name.lower()}</span>'
+            html += '</div></div>'
+            
+        html += '</div>'
+        return html
+
+    def _format_usd(self, amount: float) -> str:
+        """Format USD amount."""
+        return f"${amount:,.2f}"
+
+    def _get_vibe_class(self, vibes: List[Any]) -> str:
+        """Determine CSS class for timeline marker based on vibe."""
+        if not vibes:
+            return "timeline-vibe-neutral"
+            
+        # Extract name if it's a tuple (vibe, count)
+        top_vibe = vibes[0][0] if isinstance(vibes[0], (list, tuple)) else str(vibes[0])
+        top_vibe = top_vibe.lower()
+        
+        warm_vibes = ["social", "festive", "energetic", "intimate", "adventure"]
+        cool_vibes = ["professional", "reflective", "calm", "official"]
+        nature_vibes = ["nature", "beach", "outdoor"]
+        
+        if top_vibe in warm_vibes: return "timeline-vibe-warm"
+        if top_vibe in cool_vibes: return "timeline-vibe-cool"
+        if top_vibe in nature_vibes: return "timeline-vibe-nature"
+        
+        return "timeline-vibe-neutral"
 
 
 # =============================================================================

@@ -32,6 +32,11 @@ Config File Format (YAML):
       max_output_tokens: 8192
       timeout_seconds: 120
       max_retries: 3
+      depth_mode: deep  # quick | standard | deep
+      max_vision_images_per_run: 120
+      vision_model: gemini-2.0-flash-exp
+      narrative_model: gemini-1.5-pro
+      show_cost_estimates: true
 
     privacy:
       mode: strict  # strict | standard | detailed | full
@@ -193,6 +198,53 @@ class AIMode(str, Enum):
     FALLBACK_ONLY = "fallback_only"
 
 
+class DepthModeConfig(BaseModel):
+    """Configuration for a specific depth mode's sampling behavior.
+    
+    Controls how many images are sampled per chapter and the strategy
+    used to select them.
+    """
+    name: str
+    images_per_chapter_min: int
+    images_per_chapter_max: int
+    images_per_chapter_target: int
+    prioritize_metadata_rich: bool = True
+    temporal_spread_weight: float = 0.5
+
+
+# Per-mode presets (Increased by ~11 images for better clarity/accuracy)
+QUICK_MODE_CONFIG = DepthModeConfig(
+    name="quick",
+    images_per_chapter_min=12,
+    images_per_chapter_max=13,
+    images_per_chapter_target=12,
+    prioritize_metadata_rich=True,
+    temporal_spread_weight=0.3
+)
+STANDARD_MODE_CONFIG = DepthModeConfig(
+    name="standard",
+    images_per_chapter_min=13,
+    images_per_chapter_max=16,
+    images_per_chapter_target=14,
+    prioritize_metadata_rich=True,
+    temporal_spread_weight=0.5
+)
+DEEP_MODE_CONFIG = DepthModeConfig(
+    name="deep",
+    images_per_chapter_min=16,
+    images_per_chapter_max=23,
+    images_per_chapter_target=19,
+    prioritize_metadata_rich=True,
+    temporal_spread_weight=0.7
+)
+
+DEPTH_MODE_CONFIGS = {
+    "quick": QUICK_MODE_CONFIG,
+    "standard": STANDARD_MODE_CONFIG,
+    "deep": DEEP_MODE_CONFIG
+}
+
+
 class PrivacyMode(str, Enum):
     """Privacy levels controlling data sent to external services.
 
@@ -282,7 +334,69 @@ class AIConfig(BaseModel):
         default=AIMode.ENABLED,
         description="AI activation mode. Default ENABLED (requires consent before use).",
     )
-    model_name: str = Field(default="gemini-1.5-pro", description="Gemini model identifier.")
+    
+    # 1. Depth & Visual Sampling
+    depth_mode: Literal["quick", "standard", "deep"] = Field(
+        default="deep",
+        description=(
+            "Analysis depth. 'quick' is fast/cheap, 'standard' is balanced, "
+            "'deep' is thorough (Digital Archaeologist)."
+        ),
+        validation_alias="DEPTH_MODE"
+    )
+    
+    # 2. Model Selection
+    vision_model: str = Field(
+        default="gemini-2.0-flash-exp", 
+        description="Model used for visual tagging and atmosphere extraction."
+    )
+    narrative_model: str = Field(
+        default="gemini-1.5-pro", 
+        description="Model used for high-level narrative synthesis."
+    )
+    vision_model_fallback: str | None = Field(
+        default=None, 
+        description="Fallback model if primary vision model is unavailable."
+    )
+    allow_vision_on_videos: bool = Field(
+        default=False, 
+        description="Whether to extract and analyze frames from video files."
+    )
+
+    # 3. Budget & Caps
+    max_vision_images_per_run: int = Field(
+        default=250, # Increased from 120 to handle more images per chapter
+        description="Hard cap on total images analyzed across a single run.",
+        validation_alias="MAX_VISION_IMAGES"
+    )
+    max_vision_tokens_per_run: int | None = Field(
+        default=None, 
+        description="Optional token-based cap for visual analysis."
+    )
+    warn_on_large_dataset_threshold: int = Field(
+        default=500, 
+        description="Warn user if the input media count exceeds this number."
+    )
+    force_cap_reduction_threshold: int = Field(
+        default=150, 
+        description="Total images at which sampling density starts being reduced."
+    )
+
+    # 4. Cost Estimation
+    show_cost_estimates: bool = Field(
+        default=True, 
+        description="Whether to display estimated API costs in the report/CLI."
+    )
+    vision_cost_per_image_usd: float = Field(
+        default=0.001, 
+        description="Estimated cost per image analysis in USD."
+    )
+    narrative_cost_per_1k_tokens_usd: float = Field(
+        default=0.00375, 
+        description="Estimated cost per 1k input tokens for the narrative model."
+    )
+
+    # Legacy compatibility / Core generative settings
     temperature: float = Field(
         default=0.7,
         ge=0.0,
@@ -332,6 +446,15 @@ class AIConfig(BaseModel):
             True
         """
         return self.mode != AIMode.DISABLED
+
+    def get_depth_config(self) -> DepthModeConfig:
+        """Get the detailed sampling config for the current depth_mode.
+        
+        Returns:
+            DepthModeConfig object with sampling parameters.
+            Falls back to STANDARD if mode is invalid.
+        """
+        return DEPTH_MODE_CONFIGS.get(self.depth_mode, STANDARD_MODE_CONFIG)
 
 
 class PrivacyConfig(BaseModel):

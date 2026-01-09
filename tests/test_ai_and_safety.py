@@ -32,7 +32,7 @@ from src.ai.content_filter import (
     FilterResult,
 )
 from src.ai.fallback import FallbackAnalyzer
-from src.ai.life_analyzer import (
+from src.ai import (
     LifeStoryAnalyzer,
     LifeStoryReport,
 )

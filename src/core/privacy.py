@@ -43,7 +43,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
-from src.core.memory import Location, Memory, PersonTag
+from src.core.models import Location, Memory, PersonTag
 
 # Configure module logger
 logger = logging.getLogger(__name__)

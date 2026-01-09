@@ -53,7 +53,7 @@ from typing import TYPE_CHECKING, Any
 from pydantic import BaseModel, Field
 
 if TYPE_CHECKING:
-    from src.ai.life_analyzer import AnalysisConfig
+    from src.ai.analyzer import AnalysisConfig
     from src.config import PrivacyConfig
     from src.core.memory import Memory
 

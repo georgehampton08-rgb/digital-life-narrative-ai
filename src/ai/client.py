@@ -787,7 +787,7 @@ class AIClient:
     """
 
     # Class constants
-    DEFAULT_MODEL: str = "gemini-1.5-pro"
+    DEFAULT_MODEL: str = "gemini-2.0-flash-exp"
     SUPPORTED_MODELS: set[str] = {
         "gemini-1.5-pro",
         "gemini-1.5-flash",
@@ -858,7 +858,7 @@ class AIClient:
         try:
             genai.configure(api_key=self._api_key)
             self._is_configured = True
-            self._logger.info(f"AI client configured with model: {self._config.ai.model_name}")
+            self._logger.info(f"AI client configured with default narrative model: {self._config.ai.narrative_model}")
         except Exception as e:
             self._logger.error(f"Failed to configure AI SDK: {type(e).__name__}")
 
@@ -897,10 +897,10 @@ class AIClient:
         Returns:
             Configured GenerativeModel instance.
         """
-        target_model = model_name or self._config.ai.model_name
+        target_model = model_name or self._config.ai.narrative_model
 
         # Return cached model if same name
-        if self._model is not None and target_model == self._config.ai.model_name:
+        if self._model is not None and target_model == self._config.ai.narrative_model:
             return self._model
 
         # Create new model instance
@@ -910,7 +910,7 @@ class AIClient:
         )
 
         # Only cache if it's the default model
-        if target_model == self._config.ai.model_name:
+        if target_model == self._config.ai.narrative_model:
             self._model = model
 
         return model
@@ -956,40 +956,24 @@ class AIClient:
 
     def generate(
         self,
-        prompt: str,
+        prompt: str | list[Any],
         system_instruction: str | None = None,
         model: str | None = None,
         **overrides: Any,
     ) -> AIResponse:
-        """Generate text from a prompt.
+        """Generate text from a prompt or multimodal parts.
 
         This is the main generation method. It handles retries, error mapping,
         and response parsing automatically.
 
         Args:
-            prompt: The user prompt to send to the model.
+            prompt: Either a string prompt or a list of parts (text, image bytes, etc.)
             system_instruction: Optional system instruction to guide the model.
             model: Specific model name to use (overrides config).
             **overrides: Per-call overrides (temperature, max_output_tokens, etc.)
 
         Returns:
             AIResponse with the generated text and metadata.
-
-        Raises:
-            AIUnavailableError: If AI is disabled or not configured.
-            AIAuthenticationError: If authentication fails.
-            AIRateLimitError: If rate limit is exceeded.
-            AIServerError: If the server returns an error.
-            AITimeoutError: If the request times out.
-            TokenLimitExceededError: If token limits are exceeded.
-
-        Example:
-            >>> response = client.generate(
-            ...     prompt="What patterns do you see?",
-            ...     system_instruction="You are a life story analyst.",
-            ...     temperature=0.5
-            ... )
-            >>> print(response.text)
         """
         self._ensure_available()
 
@@ -1000,14 +984,19 @@ class AIClient:
         if system_instruction:
             contents.append({"role": "user", "parts": [system_instruction]})
             contents.append({"role": "model", "parts": ["Understood."]})
-        contents.append({"role": "user", "parts": [prompt]})
+        
+        # Handle multimodal prompt (list of parts) or simple string
+        if isinstance(prompt, list):
+            contents.append({"role": "user", "parts": prompt})
+        else:
+            contents.append({"role": "user", "parts": [prompt]})
 
         # Build generation config
         gen_config = self._get_generation_config(**overrides)
 
         # Get model instance
         model_instance = self._get_model(model)
-        model_name = model or self._config.ai.model_name
+        model_name = model or self._config.ai.narrative_model
 
         # Make the request with retry
         try:
@@ -1342,7 +1331,7 @@ class AIClient:
                 if isinstance(error, google_exceptions.NotFound):
                     # Try to extract model name
                     model_match = re.search(r"model[s]?[:/\s]+([^\s,]+)", error_str)
-                    model_name = model_match.group(1) if model_match else self._config.ai.model_name
+                    model_name = model_match.group(1) if model_match else self._config.ai.narrative_model
                     return ModelNotAvailableError(model_name, original_error=error)
 
                 if isinstance(error, google_exceptions.DeadlineExceeded):
@@ -1386,7 +1375,7 @@ class AIClient:
             return TokenLimitExceededError(original_error=error)
 
         if "model" in error_str and "not found" in error_str:
-            return ModelNotAvailableError(self._config.ai.model_name, original_error=error)
+            return ModelNotAvailableError(self._config.ai.narrative_model, original_error=error)
 
         # Generic fallback
         return AIClientError(str(error), retriable=False, original_error=error)
@@ -1513,7 +1502,7 @@ class AIClient:
                 max_output_tokens=10,
             )
             if response.text:
-                return True, f"Connected to {self._config.ai.model_name}"
+                return True, f"Connected to {self._config.ai.narrative_model}"
             return False, "Empty response from API"
         except AIClientError as e:
             return False, e.message
@@ -1529,7 +1518,7 @@ class AIClient:
         Returns:
             Dictionary with model name and limits.
         """
-        model_name = model or self._config.ai.model_name
+        model_name = model or self._config.ai.narrative_model
         return {
             "name": model_name,
             "is_supported": model_name in self.SUPPORTED_MODELS,

@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from src.ai.life_analyzer import LifeChapter, LifeStoryReport
+from src.ai import LifeChapter, LifeStoryReport
 
 # Core Models
 from src.core.memory import (

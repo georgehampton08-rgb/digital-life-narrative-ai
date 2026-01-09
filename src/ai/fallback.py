@@ -43,9 +43,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Any, Callable, Literal
 
-from src.ai.life_analyzer import (
-    AnalysisProgress,
-    DataGap,
+from src.ai import (
     LifeChapter,
     LifeStoryReport,
     PlatformBehaviorInsight,

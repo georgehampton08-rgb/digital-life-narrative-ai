@@ -397,9 +397,59 @@ GAP_ANALYSIS_SCHEMA: dict[str, Any] = {
 }
 
 
+VISUAL_ANALYSIS_SCHEMA: dict[str, Any] = {
+    "scene_tags": ["string - specific settings or objects, e.g., 'beach', 'office', 'birthday cake'"],
+    "vibe_tags": ["string - emotional or atmospheric qualities, e.g., 'warm', 'chaotic', 'nostalgic'"],
+    "visual_motifs": ["string - recurring visual elements, e.g., 'blue skies', 'coffee cups'"],
+    "people_count": "integer - approximate number of people in the image",
+    "visual_confidence": "0.0-1.0 - confidence in the analysis"
+}
+
+
 # =============================================================================
 # Prompt Templates
 # =============================================================================
+
+
+VISUAL_TAGGING_PROMPT = PromptTemplate(
+    id="visual_tagging_v1",
+    category=PromptCategory.PATTERN_DETECTION,
+    version="1.1.0",
+    description="Analyze visual content for Digital Life Narrative AI Stage 1.",
+    system_instruction=STRUCTURED_OUTPUT_SYSTEM + "\nYou are a visual curator extracting intelligence from personal photos.",
+    user_prompt_template=textwrap.dedent(
+        """
+        Analyze this image to extract meaningful tags for a life story narrative.
+        
+        ## Scene Vocabulary (use these if applicable):
+        indoor, outdoor, home, office, restaurant, café, nature, beach, mountain, city, 
+        street, transportation, event_venue, classroom, gym, bedroom, kitchen, park.
+        
+        ## Vibe Vocabulary (use these if applicable):
+        celebration, relaxation, adventure, work, social, intimate, energetic, 
+        contemplative, cozy, festive, casual, formal, romantic, playful, focused.
+        
+        ## Task:
+        1. **Scene Tags**: Classify the setting.
+        2. **Vibe Tags**: Identify the mood/atmosphere.
+        3. **Motifs**: List 2-4 prominent objects or themes (e.g., 'laptop', 'pet', 'cup').
+        4. **Description**: provide a ONE SENTENCE brief description.
+        5. **Confidence**: Score 0.0-1.0.
+        
+        ## Output Schema:
+        $output_schema
+        """
+    ).strip(),
+    output_schema={
+        "scene_tags": ["string"],
+        "vibe_tags": ["string"],
+        "motifs": ["string"],
+        "description": "string",
+        "confidence": 0.85
+    },
+    required_variables={},
+    estimated_output_tokens=300,
+)
 
 
 CHAPTER_DETECTION_PROMPT = PromptTemplate(
@@ -420,6 +470,9 @@ CHAPTER_DETECTION_PROMPT = PromptTemplate(
         ## Timeline Statistics
         $timeline_summary
         
+        ## Visual Context (if available)
+        $visual_context
+        
         ## Sample Memories (representative subset)
         $sample_memories
         
@@ -427,16 +480,16 @@ CHAPTER_DETECTION_PROMPT = PromptTemplate(
         Identify $min_chapters to $max_chapters distinct life chapters based on:
         1. Significant changes in location patterns
         2. Shifts in activity frequency or type
-        3. Changes in the people appearing in memories
-        4. Platform usage changes
-        5. Natural temporal boundaries (moves, life events, etc.)
+        3. Visual vibe shifts or motif clusters
+        4. Changes in the people appearing in memories
+        5. Platform usage changes
         
         For each chapter, provide:
         - A meaningful title (not just dates)
         - Start and end dates
         - Primary themes (2-4 keywords)
-        - Brief reasoning for why this is a distinct chapter
-        - Confidence score (0.0-1.0) based on data clarity
+        - Brief reasoning (mention visual shifts if present)
+        - Confidence score (0.0-1.0)
         
         ## Output Schema
         $output_schema
@@ -477,6 +530,9 @@ NARRATIVE_GENERATION_PROMPT = PromptTemplate(
         ## Memories in This Chapter
         $chapter_memories
         
+        ## Visual Discovery Clues (Evidence-Based)
+        $visual_discovery
+        
         ## Context
         - This is chapter $chapter_number of $total_chapters
         - Previous chapter: $previous_chapter_summary
@@ -485,9 +541,12 @@ NARRATIVE_GENERATION_PROMPT = PromptTemplate(
         ## Task
         Write a 2-4 paragraph narrative that:
         1. Captures the essence of this life phase
-        2. References specific patterns in the data
-        3. Notes any significant changes or turning points
-        4. Acknowledges what the data shows vs. what you're inferring
+        2. Weaves in visual details (vibe, scenes, motifs) from the discovery clues
+        3. References specific patterns in the data
+        4. Notes any significant changes or turning points
+        5. Acknowledges what the data shows vs. what you're inferring
+        
+        Guidelines: Use visual clues to ground the story in real evidence. Don't just list tags; incorporate them naturally (e.g., 'the energy of focused work in various office settings').
         
         Also provide:
         - An opening line (hook for timeline view)
@@ -806,6 +865,7 @@ def list_prompts(category: PromptCategory | None = None) -> list[PromptTemplate]
 def _register_builtin_prompts() -> None:
     """Register all built-in prompt templates."""
     for template in [
+        VISUAL_ANALYSIS_PROMPT,
         CHAPTER_DETECTION_PROMPT,
         NARRATIVE_GENERATION_PROMPT,
         EXECUTIVE_SUMMARY_PROMPT,
@@ -1016,24 +1076,30 @@ def render_output_schema(schema: dict[str, Any]) -> str:
     return json.dumps(schema, indent=2)
 
 
-def prepare_platform_breakdown(memories: list["Memory"]) -> str:
+def prepare_platform_breakdown(data: list["Memory"] | dict[str, int]) -> str:
     """Generate platform breakdown string for prompts.
 
     Args:
-        memories: List of Memory objects.
+        data: List of Memory objects OR a pre-calculated platform count dict.
 
     Returns:
         Comma-separated platform counts (e.g., "Snapchat: 500, Google Photos: 2000").
     """
-    platforms: Counter[str] = Counter()
-    for m in memories:
-        if m.source_platform:
-            platforms[m.source_platform.value] += 1
+    if isinstance(data, dict):
+        platforms = data
+    else:
+        from collections import Counter
+        platforms = Counter()
+        for m in data:
+            if m.source_platform:
+                platforms[m.source_platform.value] = platforms.get(m.source_platform.value, 0) + 1
 
     if not platforms:
         return "No platform information available"
 
-    return ", ".join(f"{p}: {c}" for p, c in platforms.most_common())
+    # Sort and format
+    sorted_platforms = sorted(platforms.items(), key=lambda x: x[1], reverse=True)
+    return ", ".join(f"{p}: {c}" for p, c in sorted_platforms)
 
 
 def prepare_date_range(memories: list["Memory"]) -> str:
@@ -1081,3 +1147,72 @@ def build_prompt_context(memories: list["Memory"], **kwargs: Any) -> PromptConte
         platform_breakdown=prepare_platform_breakdown(memories),
         custom_context=kwargs if kwargs else None,
     )
+def format_visual_context_for_prompt(
+    summary: Any, # ChapterVisualSummary
+    representative_descriptions: list[str] | None = None
+) -> str:
+    """Format visual summary data into a prompt-ready string.
+    
+    Args:
+        summary: ChapterVisualSummary or high-level aggregated summary.
+        representative_descriptions: Brief AI-generated descriptions of key photos.
+        
+    Returns:
+        Rendered string for prompt injection.
+    """
+    if not summary or (hasattr(summary, "images_analyzed") and summary.images_analyzed == 0):
+        return "No visual evidence was analyzed for this period."
+
+    lines = ["## Visual Evidence Background"]
+    
+    # Extract attributes if it's our dataclass or a dict
+    dominant_scenes = getattr(summary, "dominant_scenes", [])
+    dominant_vibes = getattr(summary, "dominant_vibes", [])
+    recurring_motifs = getattr(summary, "recurring_motifs", [])
+
+    if dominant_scenes:
+        lines.append(f"- **Dominant Scenes**: {', '.join(dominant_scenes)}")
+    if dominant_vibes:
+        lines.append(f"- **Atmosphere/Vibes**: {', '.join(dominant_vibes)}")
+    if recurring_motifs:
+        lines.append(f"- **Notable Motifs**: {', '.join(recurring_motifs)}")
+
+    if representative_descriptions:
+        lines.append("\n### Specific Moments Observed")
+        for desc in representative_descriptions[:5]:
+            lines.append(f"- \"{desc}\"")
+
+    return "\n".join(lines)
+
+
+def format_timeline_visual_progression(chapters: list[Any]) -> str:
+    """Creates a summary of how visual themes evolved across the timeline.
+    
+    Used for the executive summary to describe the 'visual arc' of a life.
+    """
+    if not chapters:
+        return ""
+
+    parts = []
+    for chapter in chapters:
+        scenes = getattr(chapter, "dominant_scenes", [])
+        vibes = getattr(chapter, "dominant_vibes", [])
+        if scenes or vibes:
+            desc = f"{chapter.title}: Shifted toward {', '.join(scenes[:2])} with a {', '.join(vibes[:2])} vibe."
+            parts.append(desc)
+
+    if not parts:
+        return "The visual arc remained consistent throughout the timeline."
+
+    return "\n".join(parts)
+
+
+# Registration
+register_prompt(VISUAL_TAGGING_PROMPT)
+register_prompt(CHAPTER_DETECTION_PROMPT)
+register_prompt(NARRATIVE_GENERATION_PROMPT)
+register_prompt(EXECUTIVE_SUMMARY_PROMPT)
+register_prompt(PLATFORM_ANALYSIS_PROMPT)
+register_prompt(GAP_ANALYSIS_PROMPT)
+register_prompt(PATTERN_DETECTION_PROMPT)
+register_prompt(CHAPTER_REFINEMENT_PROMPT)

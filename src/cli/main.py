@@ -35,7 +35,7 @@ except ImportError:
 # from src.detection import detect_sources, summarize_detections
 # from src.parsers.pipeline import run_pipeline, PipelineConfig
 # from src.ai.client import AIClient, AIUnavailableError
-# from src.ai.life_analyzer import LifeStoryAnalyzer
+from src.ai.analyzer import LifeStoryAnalyzer, AnalysisConfig
 # from src.ai.fallback import FallbackAnalyzer
 # from src.ai.content_filter import ContentFilter
 # from src.output.html_report import generate_report, ReportConfig
@@ -206,45 +206,28 @@ if click:
 
     @organizer.command()
     @click.option(
-        "--input",
-        "-i",
-        "inputs",
-        multiple=True,
-        type=click.Path(exists=True),
-        required=True,
-        help="Input directories (can specify multiple)",
-    )
-    @click.option(
-        "--output",
-        "-o",
-        type=click.Path(),
-        default="./life_story_report.html",
-        help="Output file path",
-    )
-    @click.option(
-        "--format",
-        "-f",
-        type=click.Choice(["html", "json", "both"]),
-        default="html",
-        help="Output format",
-    )
-    @click.option("--no-ai", is_flag=True, help="Force fallback mode (statistics only)")
-    @click.option(
-        "--privacy",
-        type=click.Choice(["strict", "standard", "detailed"]),
-        default="standard",
-        help="Privacy level for AI",
-    )
-    @click.option("--max-chapters", type=int, help="Maximum chapters to detect")
-    @click.option("--skip-safety-filter", is_flag=True, help="Skip content safety filtering")
-    @click.option(
-        "--safety-level",
-        type=click.Choice(["permissive", "moderate", "strict"]),
-        default="moderate",
-        help="Safety sensitivity",
-    )
-    @click.option(
         "--open", "open_browser", is_flag=True, help="Open report in browser after generation"
+    )
+    @click.option(
+        "--depth", 
+        type=click.Choice(["quick", "standard", "deep"]), 
+        default="standard",
+        help="Analysis depth: quick (cheap), standard (balanced), deep (thorough)"
+    )
+    @click.option(
+        "--max-ai-images", 
+        type=int, 
+        help="Override maximum images for visual AI analysis"
+    )
+    @click.option(
+        "--show-cost/--no-show-cost", 
+        default=True, 
+        help="Display estimated costs in CLI and report"
+    )
+    @click.option(
+        "--yes", "-y", 
+        is_flag=True, 
+        help="Skip confirmation prompts"
     )
     @click.option("--dry-run", is_flag=True, help="Show what would be done without doing it")
     @click.pass_context
@@ -259,6 +242,10 @@ if click:
         skip_safety_filter,
         safety_level,
         open_browser,
+        depth,
+        max_ai_images,
+        show_cost,
+        yes,
         dry_run,
     ):
         """
@@ -338,17 +325,46 @@ if click:
 
         print_success(f"Parsed {total_memories:,} memories")
 
-        # Phase 3: Safety Filtering
-        if not skip_safety_filter:
-            print_header("Phase 3: Safety Filtering")
-            console.print("Analyzing content for sensitive material...")
-            flagged_count = 42
-            if flagged_count > 0:
-                print_warning(f"{flagged_count} items flagged as potentially sensitive")
-                console.print(f"These will be handled according to safety level: {safety_level}")
+        # Phase 3: Estimation & Safety Warning
+        # Import moved here to avoid circular dependencies if any
+        from src.ai.life_analyzer import estimate_visual_cost, DepthMode
+        from src.core.models import Memory 
+        
+        # Mock memories for estimation (in real app they'd be the parsed objects)
+        # We'll create a few dummy ones to satisfy the API
+        mock_memories = [Memory(id=f"m{i}", media_type="photo") for i in range(total_memories)]
+        
+        cost_est = estimate_visual_cost(
+            mock_memories, 
+            depth=depth, 
+            max_images=max_ai_images
+        )
+        
+        if not no_ai:
+            print_header("Analysis Estimation")
+            est_content = (
+                f"Depth mode: [bold cyan]{depth}[/bold cyan]\n"
+                f"Total media items: {total_memories:,}\n"
+                f"Estimated images for visual AI: [bold]{cost_est['estimated_images']}[/bold]\n"
+                f"Estimated chapters: {max(3, total_memories // 500)}-{max(5, total_memories // 200)}\n"
+            )
+            if show_cost:
+                est_content += f"Estimated cost: [bold green]${cost_est['total_estimated_cost_usd']:.2f}[/bold green]\n"
+            
+            print_info_panel("Pre-Run Preview", est_content)
+            
+            # Large dataset warning
+            if total_memories > 500 and not yes:
+                print_warning(f"Large dataset detected ({total_memories:,} items)")
+                console.print("\nConsider:")
+                console.print(" • Running with [bold]--depth quick[/bold] for a fast first pass")
+                console.print(f" • Using [bold]--max-ai-images 100[/bold] to cap visual analysis\n")
+                
+                if not confirm("Continue with current settings?", default=True):
+                    console.print("\n[yellow]Analysis aborted by user.[/yellow]")
+                    return
 
-        # Phase 4: AI Analysis
-        print_header("Phase 4: AI Analysis")
+        # Phase 4: Safety Filtering
 
         if no_ai:
             print_warning("Running in statistics-only mode (AI disabled)")
@@ -357,20 +373,25 @@ if click:
             chapters_count = 0
         else:
             try:
-                console.print("🧠 [bold cyan]AI is analyzing your life story...[/bold cyan]")
-                # Mock AI analysis
+                console.print(f"🧠 [bold cyan]AI is analyzing your life story (depth: {depth})...[/bold cyan]")
+                # Mock AI analysis callbacks
+                def progress_callback(p):
+                    # In real app, this would update a Rich progress bar
+                    pass
+
                 progress = create_progress()
                 if progress:
                     with progress:
                         stages = [
-                            "Detecting chapters",
-                            "Analyzing themes",
-                            "Generating narratives",
-                            "Creating synthesis",
+                            ("Visual Intelligence", 20),
+                            ("Deep Analytical Pass", 40),
+                            ("Chapter Detection", 60),
+                            ("Narrative Synthesis", 80),
+                            ("Report Generation", 100),
                         ]
-                        for stage in stages:
-                            task = progress.add_task(f"{stage}...", total=100)
-                            for i in range(100):
+                        for stage_name, target in stages:
+                            task = progress.add_task(f"{stage_name}...", total=target)
+                            for i in range(target):
                                 progress.update(task, advance=1)
 
                 is_fallback = False
@@ -394,7 +415,17 @@ if click:
 
         # Success!
         print_header("🎉 Complete!")
-        print_success(f"Your {'AI-generated ' if not is_fallback else ''}Life Story is ready!")
+        
+        if not is_fallback:
+            console.print(f"[bold green]✨ AI Analysis Overview[/bold green]")
+            console.print(f"  • Depth: [cyan]{depth}[/cyan]")
+            console.print(f"  • Images analyzed: {cost_est['estimated_images']}")
+            console.print(f"  • Chapters detected: {chapters_count}")
+            if show_cost:
+                console.print(f"  • Estimated cost: [bold green]${cost_est['total_estimated_cost_usd']:.2f}[/bold green]")
+        else:
+             print_success(f"Your Life Story statistics-only report is ready!")
+
         console.print(f"\nReport saved to: [bold cyan]{output_path}[/bold cyan]")
 
         if is_fallback:

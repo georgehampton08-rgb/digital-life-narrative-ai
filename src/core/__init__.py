@@ -29,14 +29,21 @@ Example:
     >>> safe_data, warnings = gate.prepare_memories_for_ai([memory])
 """
 
-from src.core.memory import (
+from src.core.models import (
+    AnalysisConfig,
     ConfidenceLevel,
+    DepthMode,
     GeoPoint,
+    LifeChapter,
+    LifeStoryReport,
     Location,
     MediaType,
     Memory,
     PersonTag,
+    PlatformBehaviorInsight,
+    DataGap,
     SourcePlatform,
+    VisualAnalysisStats,
 )
 from src.core.privacy import (
     ConsentReceipt,
@@ -70,9 +77,14 @@ __all__ = [
     "MediaType",
     "SourcePlatform",
     "ConfidenceLevel",
+    "DepthMode",
+    "AnalysisConfig",
     "GeoPoint",
     "Location",
     "PersonTag",
+    "LifeChapter",
+    "LifeStoryReport",
+    "VisualAnalysisStats",
     # Privacy models
     "PrivacyGate",
     "PrivacyLevel",
