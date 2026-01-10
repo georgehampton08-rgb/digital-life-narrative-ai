@@ -1,0 +1,128 @@
+============================= test session starts =============================
+platform win32 -- Python 3.12.2, pytest-9.0.2, pluggy-1.6.0 -- C:\Users\georg\AppData\Local\Programs\Python\Python312\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\georg\digital-life-narrative-ai
+configfile: pyproject.toml
+plugins: anyio-4.12.1
+collecting ... collected 1 item
+
+tests/test_ai_and_safety.py::TestLifeStoryAnalyzer::test_analyzer_progress_callback FAILED [100%]
+
+================================== FAILURES ===================================
+____________ TestLifeStoryAnalyzer.test_analyzer_progress_callback ____________
+
+self = <test_ai_and_safety.TestLifeStoryAnalyzer object at 0x000002F4BDD54BC0>
+sample_memories = [Memory(id='85749e41-276e-4aef-b044-fff618644eb7', content_hash=None, metadata_hash=None, source_platform=<SourcePlatf...ally_analyzed=False, location=None, people=[], tags=[], album_name=None, original_metadata={}, parse_warnings=[]), ...]
+mock_ai_client = <MagicMock id='3250180151712'>
+
+    def test_analyzer_progress_callback(
+        self, sample_memories: list[Memory], mock_ai_client: MagicMock
+    ) -> None:
+        """Progress callback is called during analysis."""
+        progress_calls = []
+    
+        def callback(progress):
+            progress_calls.append(progress)
+    
+        analyzer = LifeStoryAnalyzer(client=mock_ai_client)
+>       analyzer.analyze(sample_memories, progress_callback=callback)
+
+tests\test_ai_and_safety.py:257: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <src.ai.analyzer.LifeStoryAnalyzer object at 0x000002F4BDD54920>
+memories = [Memory(id='85749e41-276e-4aef-b044-fff618644eb7', content_hash=None, metadata_hash=None, source_platform=<SourcePlatf...ally_analyzed=False, location=None, people=[], tags=[], album_name=None, original_metadata={}, parse_warnings=[]), ...]
+config = None
+progress_callback = <function TestLifeStoryAnalyzer.test_analyzer_progress_callback.<locals>.callback at 0x000002F4BDD64EA0>
+
+    def analyze(
+        self,
+        memories: list[Memory],
+        config: AnalysisConfig | None = None,
+        progress_callback: Callable[[AnalysisProgress], None] | None = None,
+    ) -> LifeStoryReport:
+        """Analyze memories and generate a life story report.
+    
+        Args:
+            memories: List of Memory objects to analyze.
+            config: Analysis configuration (depth, models, etc.)
+            progress_callback: Optional callback for progress updates.
+    
+        Returns:
+            Complete LifeStoryReport with chapters and narratives.
+        """
+        analysis_config = config or AnalysisConfig()
+        start_time = datetime.now()
+        self.debug_analysis_log = [] # Reset for new run
+    
+        def report_progress(stage: str, percent: float, message: str = "", chapter: str | None = None) -> None:
+            if progress_callback:
+                progress = AnalysisProgress(
+                    stage=stage,
+                    percent=percent,
+                    message=message,
+                    chapter=chapter,
+                    elapsed_seconds=(datetime.now() - start_time).total_seconds()
+                )
+                progress_callback(progress)
+    
+        report_progress("Initializing", 0.0)
+    
+        # Validate input
+        if len(memories) < self.MIN_MEMORIES_FOR_ANALYSIS:
+            raise InsufficientDataError(
+                f"Need at least {self.MIN_MEMORIES_FOR_ANALYSIS} memories, got {len(memories)}"
+            )
+    
+        # Check against warning threshold
+        ai_cfg = self.client._config.ai
+        if len(memories) > ai_cfg.warn_on_large_dataset_threshold:
+            self._logger.warning(
+                f"Large dataset detected ({len(memories)} memories). "
+                f"Analysis may take longer and sampling will be more aggressive."
+            )
+    
+        # Build timeline
+        report_progress("Building Timeline", 5.0)
+        timeline = Timeline(memories)
+        stats = timeline.compute_statistics()
+    
+        # Phase 1: Granular Analytics (Platform/Gaps/Patterns)
+        report_progress("Deep Analytical Pass", 15.0)
+>       platform_insights = self._analyze_platforms(timeline, analysis_config)
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+src\ai\analyzer.py:218: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <src.ai.analyzer.LifeStoryAnalyzer object at 0x000002F4BDD54920>
+timeline = <src.core.timeline.Timeline object at 0x000002F4BDD92AE0>
+config = AnalysisConfig(depth=<DepthMode.DEEP: 'deep'>, vision_model='gemini-2.0-flash-exp', narrative_model='gemini-1.5-pro', ...clude_gap_analysis=True, detect_patterns=True, narrative_style='warm', privacy_level='standard', fail_on_partial=False)
+
+    def _analyze_platforms(
+        self,
+        timeline: Timeline,
+        config: AnalysisConfig
+    ) -> list[PlatformBehaviorInsight]:
+        """Analyze how different platforms are used for documentation."""
+        if not config.include_platform_analysis:
+            return []
+    
+        stats = timeline.compute_statistics()
+        if not stats.platform_counts:
+            return []
+    
+        # Prepare context
+        platform_breakdown = prepare_platform_breakdown(stats.platform_counts)
+    
+        # Sample some memories per platform for vibe check
+        samples_by_p = {}
+        for platform in stats.platform_counts:
+>           p_memories = [m for m in timeline.memories if m.source_platform == platform]
+                                     ^^^^^^^^^^^^^^^^^
+E           AttributeError: 'Timeline' object has no attribute 'memories'. Did you mean: '_memories'?
+
+src\ai\analyzer.py:693: AttributeError
+=========================== short test summary info ===========================
+FAILED tests/test_ai_and_safety.py::TestLifeStoryAnalyzer::test_analyzer_progress_callback - AttributeError: 'Timeline' object has no attribute 'memories'. Did you mean: '_memories'?
+============================== 1 failed in 0.16s ==============================

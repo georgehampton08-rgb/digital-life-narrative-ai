@@ -1,6 +1,15 @@
 """Digital Life Narrative AI - Source Package.
 
-Main source code for the Digital Life Narrative AI project.
+DEPRECATION WARNING:
+The 'src.' prefix is no longer used for imports. 
+The package has been renamed to 'dlnai'.
+
+If you are seeing this error, it means you are attempting to import from the old namespace.
+Instead of: `from src.core import ...`
+Use:        `from dlnai.core import ...`
 """
 
-__version__ = "0.1.0"
+raise ImportError(
+    "The 'src' prefix is deprecated and no longer supported as a package root. "
+    "Please use the 'dlnai' package instead (e.g., 'import dlnai.core')."
+)

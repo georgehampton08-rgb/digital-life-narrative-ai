@@ -18,30 +18,33 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 # AI Components
-from src.ai.client import (
+from dlnai.ai.client import (
     AIAuthenticationError,
     AIClientError,
     AIRateLimitError,
     AIResponse,
     AIUnavailableError,
     APIKeyMissingError,
-    StructuredAIResponse,
+    StructuredResponse,
 )
-from src.ai.content_filter import (
+from dlnai.ai.content_filter import (
     ContentFilter,
     FilterResult,
 )
-from src.ai.fallback import FallbackAnalyzer
-from src.ai import (
+from dlnai.ai.fallback import FallbackAnalyzer
+from dlnai.ai import (
     LifeStoryAnalyzer,
     LifeStoryReport,
+    PlatformBehaviorInsight,
+    DataGap,
+    InsufficientDataError,
 )
 
 # Core Models
-from src.core.memory import MediaType, Memory, SourcePlatform
+from dlnai.core.memory import MediaType, Memory, SourcePlatform
 
 # Safety Components
-from src.core.safety import (
+from dlnai.core.safety import (
     DetectionMethod,
     MemorySafetyState,
     SafetyAction,
@@ -90,10 +93,10 @@ class TestAIClient:
         assert response.model is not None
 
     def test_client_generate_json_success(self, mock_ai_client: MagicMock) -> None:
-        """generate_json() returns StructuredAIResponse with parsed data."""
+        """generate_json() returns StructuredResponse with parsed data."""
         response = mock_ai_client.generate_json("Return JSON with chapters")
 
-        assert isinstance(response, StructuredAIResponse)
+        assert isinstance(response, StructuredResponse)
         assert response.data is not None
         assert isinstance(response.data, dict)
         assert response.parse_success is True
@@ -103,7 +106,7 @@ class TestAIClient:
         mock_client = MagicMock()
 
         # Simulate generate_json returning parse failure with empty dict instead of None
-        mock_client.generate_json.return_value = StructuredAIResponse(
+        mock_client.generate_json.return_value = StructuredResponse(
             data={},  # Empty dict instead of None
             raw_text="This is not valid JSON at all",
             model="gemini-1.5-flash",
@@ -270,7 +273,7 @@ class TestLifeStoryAnalyzer:
             raise AIClientError("Temporary failure")
 
         mock_client.generate.side_effect = generate_side_effect
-        mock_client.generate_json.return_value = StructuredAIResponse(
+        mock_client.generate_json.return_value = StructuredResponse(
             data={
                 "chapters": [
                     {"title": "Test", "start_date": "2020-01-01", "end_date": "2020-12-31"}
@@ -281,7 +284,7 @@ class TestLifeStoryAnalyzer:
             tokens_used=100,
             parse_success=True,
         )
-        mock_client.generate_structured.return_value = StructuredAIResponse(
+        mock_client.generate_structured.return_value = StructuredResponse(
             data={
                 "chapters": [
                     {"title": "Test", "start_date": "2020-01-01", "end_date": "2020-12-31"}
@@ -310,10 +313,9 @@ class TestLifeStoryAnalyzer:
         tiny_list = [sample_memories[0]]
 
         analyzer = LifeStoryAnalyzer(client=mock_ai_client)
-        result = analyzer.analyze(tiny_list)
-
-        # Should still produce some report
-        assert isinstance(result, LifeStoryReport)
+        # Should raise InsufficientDataError for only 1 memory
+        with pytest.raises(InsufficientDataError):
+            analyzer.analyze(tiny_list)
 
 
 # =============================================================================
@@ -365,7 +367,7 @@ class TestFallbackAnalyzer:
     def test_fallback_stats_accurate(self, sample_memories: list[Memory]) -> None:
         """Fallback correctly counts total memories."""
         result = FallbackAnalyzer().analyze(sample_memories)
-        assert result.total_memories_analyzed == len(sample_memories)
+        assert result.total_memories == len(sample_memories)
 
 
 # =============================================================================
@@ -397,7 +399,7 @@ class TestContentFilter:
             created_at=datetime.now(timezone.utc),
             source_path=str(Path(__file__).parent / "test_image.jpg"),
             caption="This is NSFW content do not share",
-            filename="photo.jpg",
+            source_filename="photo.jpg",
         )
 
         with patch(
@@ -421,7 +423,7 @@ class TestContentFilter:
             created_at=datetime.now(timezone.utc),
             source_path=str(Path(__file__).parent / "test_image.jpg"),
             caption="This is private confidential content",
-            filename="photo.jpg",
+            source_filename="photo.jpg",
         )
 
         with patch(
@@ -475,7 +477,7 @@ class TestContentFilter:
         ):
             content_filter = ContentFilter(safety_settings=sample_safety_settings)
             # Only pass memories with filenames since filter skips those without
-            memories_with_files = [m for m in sample_memories if m.filename]
+            memories_with_files = [m for m in sample_memories if m.source_filename]
             if not memories_with_files:
                 # Create test memory with filename
                 memories_with_files = [
@@ -483,7 +485,7 @@ class TestContentFilter:
                         source_platform=SourcePlatform.LOCAL,
                         media_type=MediaType.PHOTO,
                         created_at=datetime.now(timezone.utc),
-                        filename="test.jpg",
+                        source_filename="test.jpg",
                     )
                 ]
 
@@ -607,7 +609,7 @@ class TestAIFallbackIntegration:
         def json_side_effect(*args, **kwargs):
             chapter_call_count["value"] += 1
             if chapter_call_count["value"] == 1:
-                return StructuredAIResponse(
+                return StructuredResponse(
                     data={
                         "chapters": [
                             {

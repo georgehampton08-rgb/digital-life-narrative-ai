@@ -17,8 +17,9 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
-from src.core.memory import (
+from dlnai.core.memory import (
     ConfidenceLevel,
     GeoPoint,
     Location,
@@ -62,22 +63,22 @@ class TestGeoPoint:
 
     def test_invalid_latitude_too_high(self):
         """Test validation rejects latitude > 90."""
-        with pytest.raises(ValueError, match="Latitude must be between -90 and 90"):
+        with pytest.raises(ValidationError):
             GeoPoint(latitude=91.0, longitude=0.0)
 
     def test_invalid_latitude_too_low(self):
         """Test validation rejects latitude < -90."""
-        with pytest.raises(ValueError, match="Latitude must be between -90 and 90"):
+        with pytest.raises(ValidationError):
             GeoPoint(latitude=-91.0, longitude=0.0)
 
     def test_invalid_longitude_too_high(self):
         """Test validation rejects longitude > 180."""
-        with pytest.raises(ValueError, match="Longitude must be between -180 and 180"):
+        with pytest.raises(ValidationError):
             GeoPoint(latitude=0.0, longitude=181.0)
 
     def test_invalid_longitude_too_low(self):
         """Test validation rejects longitude < -180."""
-        with pytest.raises(ValueError, match="Longitude must be between -180 and 180"):
+        with pytest.raises(ValidationError):
             GeoPoint(latitude=0.0, longitude=-181.0)
 
     def test_distance_calculation(self):

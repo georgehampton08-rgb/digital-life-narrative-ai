@@ -17,13 +17,13 @@ import pytest
 from click.testing import CliRunner
 
 # AI Models for mocking
-from src.ai import LifeChapter, LifeStoryReport
+from dlnai.ai import LifeChapter, LifeStoryReport
 
 # CLI entry point
-from src.cli.main import organizer
+from dlnai.cli.main import organizer
 
 # HTML Report components
-from src.output.html_report import (
+from dlnai.output.html_report import (
     HTMLReportGenerator,
     ReportConfig,
 )

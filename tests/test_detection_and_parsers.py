@@ -15,28 +15,28 @@ from pathlib import Path
 import pytest
 
 # Core Models
-from src.core.memory import (
+from dlnai.core.memory import (
     ConfidenceLevel,
     MediaType,
     SourcePlatform,
 )
 
 # Detection Module
-from src.detection import (
+from dlnai.detection import (
     detect_sources,
     detect_sources_recursive,
     summarize_detections,
 )
 
 # Parser Infrastructure
-from organizer.parsers import (
+from dlnai.parsers import (
     BaseParser,
     ParseResult,
     ParserRegistry,
 )
-from organizer.parsers.google_photos import GooglePhotosParser
-from organizer.parsers.local import LocalPhotosParser
-from organizer.parsers.snapchat import SnapchatParser
+from dlnai.parsers.google_photos import GooglePhotosParser
+from dlnai.parsers.local_files import LocalFilesParser
+from dlnai.parsers.snapchat import SnapchatParser
 
 # =============================================================================
 # Detection Tests
@@ -297,7 +297,7 @@ class TestLocalFilesParser:
             # At least one should have HIGH confidence (from EXIF)
             high_conf = [m for m in timestamped if m.created_at_confidence == ConfidenceLevel.HIGH]
             assert len(high_conf) >= 0  # May not have EXIF in test fixtures
-
+            
     def test_local_filename_datetime_extracted(self, local_photos_dir: Path) -> None:
         """Datetime is extracted from filename patterns."""
         result = LocalFilesParser().parse(local_photos_dir)

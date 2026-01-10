@@ -10,18 +10,18 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from organizer.models import (
+from dlnai.ai import LifeChapter, LifeStoryReport
+from dlnai.core.models import (
     AnalysisConfig,
-    Confidence,
+    ConfidenceLevel,
     DataGap,
-    GeoLocation,
-    LifeChapter,
-    LifeStoryReport,
-    MediaItem,
+    GeoPoint,
+    Location,
+    Memory,
     MediaType,
-    ParseResult,
     SourcePlatform,
 )
+from dlnai.parsers.base import ParseResult
 
 # =============================================================================
 # Enum Tests
@@ -47,10 +47,10 @@ class TestEnums:
         assert SourcePlatform.LOCAL.value == "local"
 
     def test_confidence_values(self) -> None:
-        """Test Confidence enum has expected values."""
-        assert Confidence.HIGH.value == "high"
-        assert Confidence.MEDIUM.value == "medium"
-        assert Confidence.LOW.value == "low"
+        """Test ConfidenceLevel enum has expected values."""
+        assert ConfidenceLevel.HIGH.value == "high"
+        assert ConfidenceLevel.MEDIUM.value == "medium"
+        assert ConfidenceLevel.LOW.value == "low"
 
 
 # =============================================================================
@@ -58,27 +58,23 @@ class TestEnums:
 # =============================================================================
 
 
-class TestGeoLocation:
-    """Tests for GeoLocation model."""
+class TestGeoPoint:
+    """Tests for GeoPoint model."""
 
-    def test_valid_geo_location(self) -> None:
-        """Test creating valid GeoLocation."""
-        loc = GeoLocation(
+    def test_valid_geo_point(self) -> None:
+        """Test creating valid GeoPoint."""
+        loc = GeoPoint(
             latitude=41.8781,
             longitude=-87.6298,
-            place_name="Chicago",
-            country="USA",
         )
         assert loc.latitude == 41.8781
         assert loc.longitude == -87.6298
-        assert loc.place_name == "Chicago"
 
-    def test_geo_location_minimal(self) -> None:
-        """Test GeoLocation with only lat/lon."""
-        loc = GeoLocation(latitude=0.0, longitude=0.0)
+    def test_geo_point_minimal(self) -> None:
+        """Test GeoPoint with only lat/lon."""
+        loc = GeoPoint(latitude=0.0, longitude=0.0)
         assert loc.latitude == 0.0
         assert loc.longitude == 0.0
-        assert loc.place_name is None
 
     @pytest.mark.parametrize(
         "latitude,longitude,valid",
@@ -93,7 +89,7 @@ class TestGeoLocation:
             (0.0, -181.0, False),  # Invalid longitude
         ],
     )
-    def test_geo_location_bounds(
+    def test_geo_point_bounds(
         self,
         latitude: float,
         longitude: float,
@@ -101,12 +97,12 @@ class TestGeoLocation:
     ) -> None:
         """Test latitude/longitude validation bounds."""
         if valid:
-            loc = GeoLocation(latitude=latitude, longitude=longitude)
+            loc = GeoPoint(latitude=latitude, longitude=longitude)
             assert loc.latitude == latitude
             assert loc.longitude == longitude
         else:
             with pytest.raises(ValidationError):
-                GeoLocation(latitude=latitude, longitude=longitude)
+                GeoPoint(latitude=latitude, longitude=longitude)
 
 
 # =============================================================================
@@ -117,111 +113,111 @@ class TestGeoLocation:
 class TestMediaItem:
     """Tests for MediaItem model."""
 
-    def test_media_item_full(self) -> None:
-        """Test MediaItem creation with all fields."""
-        item = MediaItem(
-            id=uuid.UUID("12345678-1234-5678-1234-567812345678"),
+    def test_memory_full(self) -> None:
+        """Test Memory creation with all fields."""
+        item = Memory(
+            id=str(uuid.UUID("12345678-1234-5678-1234-567812345678")),
             source_platform=SourcePlatform.GOOGLE_PHOTOS,
             media_type=MediaType.PHOTO,
-            file_path=Path("/photos/test.jpg"),
-            timestamp=datetime(2020, 5, 15, 10, 30, 0, tzinfo=timezone.utc),
-            location=GeoLocation(latitude=40.0, longitude=-74.0, place_name="NYC"),
-            people=["Alice", "Bob"],
+            source_path=Path("/photos/test.jpg"),
+            created_at=datetime(2020, 5, 15, 10, 30, 0, tzinfo=timezone.utc),
+            location=Location(coordinates=GeoPoint(latitude=40.0, longitude=-74.0), place_name="NYC"),
+            people=[{"name": "Alice"}, {"name": "Bob"}],
             caption="Test photo",
             original_metadata={"album": "Summer"},
-            file_hash="abc123",
-            file_size_bytes=1024000,
-            timestamp_confidence=Confidence.HIGH,
+            content_hash="abc123",
+            created_at_confidence=ConfidenceLevel.HIGH,
         )
 
         assert item.source_platform == SourcePlatform.GOOGLE_PHOTOS
         assert item.media_type == MediaType.PHOTO
-        assert item.file_path == Path("/photos/test.jpg")
+        assert item.source_path == Path("/photos/test.jpg")
         assert len(item.people) == 2
-        assert item.file_hash == "abc123"
+        assert item.content_hash == "abc123"
 
-    def test_media_item_minimal(self) -> None:
-        """Test MediaItem creation with minimal fields (test defaults)."""
-        item = MediaItem(
+    def test_memory_minimal(self) -> None:
+        """Test Memory creation with minimal fields (test defaults)."""
+        item = Memory(
             source_platform=SourcePlatform.LOCAL,
             media_type=MediaType.PHOTO,
-            file_path=Path("/photo.jpg"),
+            source_path=Path("/photo.jpg"),
         )
 
-        assert item.id is not None  # Auto-generated UUID
-        assert item.timestamp is None
+        assert item.id is not None  # Auto-generated UUID string
+        assert item.created_at is None
         assert item.location is None
         assert item.people == []
         assert item.caption is None
         assert item.original_metadata == {}
-        assert item.file_hash is None
-        assert item.timestamp_confidence == Confidence.MEDIUM
+        assert item.content_hash is None
+        assert item.created_at_confidence == ConfidenceLevel.MEDIUM
 
-    def test_media_item_auto_uuid(self) -> None:
-        """Test that MediaItem generates unique UUIDs."""
-        item1 = MediaItem(
+    def test_memory_auto_uuid(self) -> None:
+        """Test that Memory generates unique UUIDs."""
+        item1 = Memory(
             source_platform=SourcePlatform.LOCAL,
             media_type=MediaType.PHOTO,
-            file_path=Path("/photo1.jpg"),
+            source_path=Path("/photo1.jpg"),
         )
-        item2 = MediaItem(
+        item2 = Memory(
             source_platform=SourcePlatform.LOCAL,
             media_type=MediaType.PHOTO,
-            file_path=Path("/photo2.jpg"),
+            source_path=Path("/photo2.jpg"),
         )
 
         assert item1.id != item2.id
 
-    def test_media_item_to_ai_summary(self) -> None:
-        """Test MediaItem.to_ai_summary() returns correct format."""
-        item = MediaItem(
+    def test_memory_to_ai_payload(self) -> None:
+        """Test Memory.to_ai_payload() returns correct format."""
+        item = Memory(
             source_platform=SourcePlatform.SNAPCHAT,
             media_type=MediaType.VIDEO,
-            file_path=Path("/path/to/snap.mp4"),
-            timestamp=datetime(2020, 6, 15, tzinfo=timezone.utc),
-            location=GeoLocation(latitude=41.0, longitude=-87.0, place_name="Chicago"),
-            people=["Alice"],
+            source_path=Path("/path/to/snap.mp4"),
+            created_at=datetime(2020, 6, 15, tzinfo=timezone.utc),
+            location=Location(coordinates=GeoPoint(latitude=41.0, longitude=-87.0), place_name="Chicago"),
+            people=[{"name": "Alice"}],
             caption="Fun day!",
         )
 
-        summary = item.to_ai_summary()
+        payload = item.to_ai_payload()
 
-        assert summary["platform"] == "snapchat"
-        assert summary["type"] == "video"
-        assert "2020-06-15" in summary["date"]
-        assert summary["location"] == "Chicago"
-        assert summary["people"] == ["Alice"]
-        assert summary["caption"] == "Fun day!"
+        assert payload["platform"] == "snapchat"
+        assert payload["media_type"] == "video"
+        assert "2020-06-15" in payload["created_at"]
+        assert payload["has_location"] is True
+        assert payload["people_count"] == 1
 
-    def test_media_item_to_ai_summary_privacy_mode(self) -> None:
-        """Test MediaItem.to_ai_summary() privacy sanitization."""
-        item = MediaItem(
+    def test_memory_to_ai_payload_privacy_level(self) -> None:
+        """Test Memory.to_ai_payload() privacy sanitization."""
+        item = Memory(
             source_platform=SourcePlatform.LOCAL,
             media_type=MediaType.PHOTO,
-            file_path=Path("/users/john/secret/photo.jpg"),
-            timestamp=datetime(2020, 6, 15, tzinfo=timezone.utc),
+            source_path=Path("/users/john/secret/photo.jpg"),
+            created_at=datetime(2020, 6, 15, tzinfo=timezone.utc),
             caption="With family at home",
         )
 
-        summary = item.to_ai_summary(privacy_mode=True)
+        payload = item.to_ai_payload(privacy_level="strict")
 
-        # File path should be anonymized
-        assert "file_path" not in summary or "john" not in str(summary.get("file_path", ""))
+        # source_path and caption should be missing in strict mode
+        assert "source_path" not in payload
+        assert "caption" not in payload
+        assert "created_at" in payload
+        assert payload["created_at"] == "2020-06"  # Month only in strict
 
-    def test_media_item_to_ai_summary_minimal(self) -> None:
-        """Test to_ai_summary with minimal data."""
-        item = MediaItem(
+    def test_memory_to_ai_payload_minimal(self) -> None:
+        """Test to_ai_payload with minimal data."""
+        item = Memory(
             source_platform=SourcePlatform.LOCAL,
             media_type=MediaType.PHOTO,
-            file_path=Path("/photo.jpg"),
+            source_path=Path("/photo.jpg"),
         )
 
-        summary = item.to_ai_summary()
+        payload = item.to_ai_payload()
 
-        assert summary["platform"] == "local"
-        assert summary["type"] == "photo"
-        assert summary.get("date") is None
-        assert summary.get("location") is None
+        assert payload["platform"] == "local"
+        assert payload["media_type"] == "photo"
+        assert payload.get("created_at") is None
 
 
 # =============================================================================
@@ -244,7 +240,7 @@ class TestLifeChapter:
             location_summary="State University",
             media_count=500,
             representative_media_ids=[uuid.uuid4()],
-            confidence=Confidence.HIGH,
+            confidence=ConfidenceLevel.HIGH,
         )
 
         assert chapter.title == "College Years"
@@ -262,7 +258,7 @@ class TestLifeChapter:
             key_events=[],
             media_count=0,
             representative_media_ids=[],
-            confidence=Confidence.LOW,
+            confidence=ConfidenceLevel.LOW,
         )
 
         assert chapter.location_summary is None
@@ -278,7 +274,7 @@ class TestLifeStoryReport:
 
     def test_life_story_report_creation(self, sample_life_report: LifeStoryReport) -> None:
         """Test LifeStoryReport creation."""
-        assert sample_life_report.total_media_analyzed == 33
+        assert sample_life_report.total_media_analyzed == 150
         assert len(sample_life_report.chapters) == 3
         assert sample_life_report.is_fallback_mode is False
 
@@ -287,7 +283,7 @@ class TestLifeStoryReport:
         json_str = sample_life_report.model_dump_json()
         data = json.loads(json_str)
 
-        assert data["total_media_analyzed"] == 33
+        assert data["total_media_analyzed"] == 150
         assert len(data["chapters"]) == 3
         assert data["ai_model_used"] == "gemini-1.5-pro"
         assert data["is_fallback_mode"] is False
@@ -304,7 +300,7 @@ class TestLifeStoryReport:
     def test_years_covered_property(self, sample_life_report: LifeStoryReport) -> None:
         """Test years_covered computed property."""
         years = sample_life_report.years_covered
-        assert years == 3  # 2019, 2020, 2021
+        assert years == 5  # 2018-2022
 
 
 # =============================================================================
@@ -341,21 +337,21 @@ class TestDataGap:
             start_date=date(2020, 3, 1),
             end_date=date(2020, 6, 1),
             gap_days=92,
-            possible_reasons=["Pandemic", "Lost phone"],
+            possible_explanations=["Pandemic", "Lost phone"],
         )
 
         assert gap.gap_days == 92
-        assert len(gap.possible_reasons) == 2
+        assert len(gap.possible_explanations) == 2
 
     def test_data_gap_minimal(self) -> None:
         """Test DataGap with minimal fields."""
         gap = DataGap(
             start_date=date(2020, 1, 1),
             end_date=date(2020, 2, 1),
-            gap_days=31,
+            duration_days=31,
         )
 
-        assert gap.possible_reasons == []
+        assert gap.possible_explanations == []
 
 
 # =============================================================================
@@ -371,20 +367,20 @@ class TestAnalysisConfig:
         config = AnalysisConfig()
 
         assert config.min_chapter_duration_days == 30
-        assert config.max_chapters == 20
-        assert config.privacy_mode is False
+        assert config.max_chapters == 15
+        assert config.privacy_level == "standard"
 
     def test_analysis_config_custom(self) -> None:
         """Test AnalysisConfig custom values."""
         config = AnalysisConfig(
             min_chapter_duration_days=60,
             max_chapters=5,
-            privacy_mode=True,
+            privacy_level="strict"
         )
 
         assert config.min_chapter_duration_days == 60
         assert config.max_chapters == 5
-        assert config.privacy_mode is True
+        assert config.privacy_level == "strict"
 
 
 # =============================================================================
@@ -398,25 +394,25 @@ class TestValidationErrors:
     def test_invalid_media_type(self) -> None:
         """Test validation error for invalid media type."""
         with pytest.raises(ValidationError):
-            MediaItem(
+            Memory(
                 source_platform=SourcePlatform.LOCAL,
                 media_type="invalid_type",  # type: ignore
-                file_path=Path("/photo.jpg"),
+                source_path=Path("/photo.jpg"),
             )
 
     def test_invalid_platform(self) -> None:
         """Test validation error for invalid platform."""
         with pytest.raises(ValidationError):
-            MediaItem(
+            Memory(
                 source_platform="invalid_platform",  # type: ignore
                 media_type=MediaType.PHOTO,
-                file_path=Path("/photo.jpg"),
+                source_path=Path("/photo.jpg"),
             )
 
     def test_missing_required_fields(self) -> None:
         """Test validation error for missing required fields."""
         with pytest.raises(ValidationError):
-            MediaItem()  # type: ignore
+            Memory()  # type: ignore
 
     def test_invalid_date_range(self) -> None:
         """Test that invalid date range can be created (no built-in validation)."""
@@ -430,7 +426,7 @@ class TestValidationErrors:
             key_events=[],
             media_count=0,
             representative_media_ids=[],
-            confidence=Confidence.LOW,
+            confidence=ConfidenceLevel.LOW,
         )
         # Model allows it, but end is before start
         assert chapter.start_date > chapter.end_date

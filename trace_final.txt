@@ -1,0 +1,10 @@
+ERROR: file or directory not found: not
+
+============================= test session starts =============================
+platform win32 -- Python 3.12.2, pytest-9.0.2, pluggy-1.6.0
+rootdir: C:\Users\georg\digital-life-narrative-ai
+configfile: pyproject.toml
+plugins: anyio-4.12.1
+collected 0 items
+
+============================ no tests ran in 0.00s ============================

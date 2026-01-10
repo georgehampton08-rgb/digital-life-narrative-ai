@@ -18,7 +18,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 # Import test targets - module handles missing SDK gracefully
-from src.ai.client import (
+from dlnai.ai.client import (
     AIAuthError,
     AIBadRequestError,
     # Client
@@ -56,7 +56,7 @@ def mock_config():
     config = MagicMock()
     config.ai.mode.value = "enabled"
     config.ai.is_enabled.return_value = True
-    config.ai.model_name = "gemini-1.5-pro"
+    config.ai.narrative_model = "gemini-1.5-pro"
     config.ai.temperature = 0.7
     config.ai.max_output_tokens = 8192
     config.ai.timeout_seconds = 120
@@ -181,7 +181,7 @@ class TestResponseModels:
             completion_tokens=5,
             total_tokens=15,
             finish_reason="STOP",
-            generation_time_ms=100.0,
+            latency_ms=100.0,
         )
 
         assert response.text == "Hello world"
@@ -296,10 +296,10 @@ class TestConsentManagement:
 class TestAIClient:
     """Test AIClient class."""
 
-    @patch("src.ai.client.GENAI_AVAILABLE", True)
-    @patch("src.ai.client.genai")
-    @patch("src.ai.client.get_config")
-    @patch("src.ai.client.get_api_key")
+    @patch("dlnai.ai.client.GENAI_AVAILABLE", True)
+    @patch("dlnai.ai.client.genai")
+    @patch("dlnai.ai.client.get_config")
+    @patch("dlnai.ai.client.get_api_key")
     def test_client_initialization(
         self,
         mock_get_api_key,
@@ -314,11 +314,11 @@ class TestAIClient:
         client = AIClient(config=mock_config)
 
         assert client._is_configured is True
-        mock_genai.configure.assert_called_once()
+        mock_genai.Client.assert_called_once()
 
-    @patch("src.ai.client.GENAI_AVAILABLE", True)
-    @patch("src.ai.client.genai")
-    @patch("src.ai.client.get_config")
+    @patch("dlnai.ai.client.GENAI_AVAILABLE", True)
+    @patch("dlnai.ai.client.genai")
+    @patch("dlnai.ai.client.get_config")
     def test_client_disabled_mode(
         self,
         mock_get_config,
@@ -332,10 +332,10 @@ class TestAIClient:
 
         assert client.is_available() is False
 
-    @patch("src.ai.client.GENAI_AVAILABLE", True)
-    @patch("src.ai.client.genai")
-    @patch("src.ai.client.get_config")
-    @patch("src.ai.client.get_api_key")
+    @patch("dlnai.ai.client.GENAI_AVAILABLE", True)
+    @patch("dlnai.ai.client.genai")
+    @patch("dlnai.ai.client.get_config")
+    @patch("dlnai.ai.client.get_api_key")
     def test_is_available(
         self,
         mock_get_api_key,
@@ -351,10 +351,10 @@ class TestAIClient:
 
         assert client.is_available() is True
 
-    @patch("src.ai.client.GENAI_AVAILABLE", True)
-    @patch("src.ai.client.genai")
-    @patch("src.ai.client.get_config")
-    @patch("src.ai.client.get_api_key")
+    @patch("dlnai.ai.client.GENAI_AVAILABLE", True)
+    @patch("dlnai.ai.client.genai")
+    @patch("dlnai.ai.client.get_config")
+    @patch("dlnai.ai.client.get_api_key")
     def test_ensure_available_no_consent(
         self,
         mock_get_api_key,
@@ -374,10 +374,10 @@ class TestAIClient:
 
         assert exc_info.value.reason == "no_consent"
 
-    @patch("src.ai.client.GENAI_AVAILABLE", True)
-    @patch("src.ai.client.genai")
-    @patch("src.ai.client.get_config")
-    @patch("src.ai.client.get_api_key")
+    @patch("dlnai.ai.client.GENAI_AVAILABLE", True)
+    @patch("dlnai.ai.client.genai")
+    @patch("dlnai.ai.client.get_config")
+    @patch("dlnai.ai.client.get_api_key")
     def test_generate_success(
         self,
         mock_get_api_key,
@@ -390,9 +390,9 @@ class TestAIClient:
         mock_get_config.return_value = mock_config
         mock_get_api_key.return_value = MagicMock(get_secret_value=lambda: "test-key")
 
-        mock_model = MagicMock()
-        mock_model.generate_content.return_value = mock_genai_response
-        mock_genai.GenerativeModel.return_value = mock_model
+        mock_client = MagicMock()
+        mock_client.models.generate_content.return_value = mock_genai_response
+        mock_genai.Client.return_value = mock_client
 
         grant_consent_programmatic()
         client = AIClient(config=mock_config)
@@ -403,10 +403,10 @@ class TestAIClient:
         assert response.text == "Generated response text"
         assert response.total_tokens == 150
 
-    @patch("src.ai.client.GENAI_AVAILABLE", True)
-    @patch("src.ai.client.genai")
-    @patch("src.ai.client.get_config")
-    @patch("src.ai.client.get_api_key")
+    @patch("dlnai.ai.client.GENAI_AVAILABLE", True)
+    @patch("dlnai.ai.client.genai")
+    @patch("dlnai.ai.client.get_config")
+    @patch("dlnai.ai.client.get_api_key")
     def test_generate_structured_success(
         self,
         mock_get_api_key,
@@ -430,9 +430,9 @@ class TestAIClient:
         )
         mock_response.prompt_feedback = MagicMock(block_reason=None)
 
-        mock_model = MagicMock()
-        mock_model.generate_content.return_value = mock_response
-        mock_genai.GenerativeModel.return_value = mock_model
+        mock_client = MagicMock()
+        mock_client.models.generate_content.return_value = mock_response
+        mock_genai.Client.return_value = mock_client
 
         grant_consent_programmatic()
         client = AIClient(config=mock_config)
@@ -443,10 +443,10 @@ class TestAIClient:
         assert response.data["key"] == "value"
         assert response.data["count"] == 42
 
-    @patch("src.ai.client.GENAI_AVAILABLE", True)
-    @patch("src.ai.client.genai")
-    @patch("src.ai.client.get_config")
-    @patch("src.ai.client.get_api_key")
+    @patch("dlnai.ai.client.GENAI_AVAILABLE", True)
+    @patch("dlnai.ai.client.genai")
+    @patch("dlnai.ai.client.get_config")
+    @patch("dlnai.ai.client.get_api_key")
     def test_generate_structured_invalid_json(
         self,
         mock_get_api_key,
@@ -470,9 +470,9 @@ class TestAIClient:
         )
         mock_response.prompt_feedback = MagicMock(block_reason=None)
 
-        mock_model = MagicMock()
-        mock_model.generate_content.return_value = mock_response
-        mock_genai.GenerativeModel.return_value = mock_model
+        mock_client = MagicMock()
+        mock_client.models.generate_content.return_value = mock_response
+        mock_genai.Client.return_value = mock_client
 
         grant_consent_programmatic()
         client = AIClient(config=mock_config)
@@ -482,10 +482,10 @@ class TestAIClient:
         assert response.parse_success is False
         assert response.parse_error is not None
 
-    @patch("src.ai.client.GENAI_AVAILABLE", True)
-    @patch("src.ai.client.genai")
-    @patch("src.ai.client.get_config")
-    @patch("src.ai.client.get_api_key")
+    @patch("dlnai.ai.client.GENAI_AVAILABLE", True)
+    @patch("dlnai.ai.client.genai")
+    @patch("dlnai.ai.client.get_config")
+    @patch("dlnai.ai.client.get_api_key")
     def test_estimate_tokens(
         self,
         mock_get_api_key,
@@ -503,10 +503,10 @@ class TestAIClient:
         estimate = client.estimate_tokens("Hello world")  # 11 chars
         assert estimate == 2  # 11 // 4 = 2
 
-    @patch("src.ai.client.GENAI_AVAILABLE", True)
-    @patch("src.ai.client.genai")
-    @patch("src.ai.client.get_config")
-    @patch("src.ai.client.get_api_key")
+    @patch("dlnai.ai.client.GENAI_AVAILABLE", True)
+    @patch("dlnai.ai.client.genai")
+    @patch("dlnai.ai.client.get_config")
+    @patch("dlnai.ai.client.get_api_key")
     def test_get_model_info(
         self,
         mock_get_api_key,
@@ -534,11 +534,11 @@ class TestAIClient:
 class TestRetryLogic:
     """Test retry behavior."""
 
-    @patch("src.ai.client.GENAI_AVAILABLE", True)
-    @patch("src.ai.client.genai")
-    @patch("src.ai.client.google_exceptions")
-    @patch("src.ai.client.get_config")
-    @patch("src.ai.client.get_api_key")
+    @patch("dlnai.ai.client.GENAI_AVAILABLE", True)
+    @patch("dlnai.ai.client.genai")
+    @patch("dlnai.ai.client.google_exceptions")
+    @patch("dlnai.ai.client.get_config")
+    @patch("dlnai.ai.client.get_api_key")
     def test_retry_on_rate_limit(
         self,
         mock_get_api_key,
@@ -556,13 +556,13 @@ class TestRetryLogic:
         rate_limit_exc = Exception("Rate limit exceeded")
         mock_google_exc.ResourceExhausted = type(rate_limit_exc)
 
-        mock_model = MagicMock()
+        mock_client = MagicMock()
         # First call fails, second succeeds
-        mock_model.generate_content.side_effect = [
+        mock_client.models.generate_content.side_effect = [
             rate_limit_exc,
             mock_genai_response,
         ]
-        mock_genai.GenerativeModel.return_value = mock_model
+        mock_genai.Client.return_value = mock_client
 
         grant_consent_programmatic()
         client = AIClient(config=mock_config)
@@ -570,12 +570,12 @@ class TestRetryLogic:
         response = client.generate("Test prompt")
 
         assert response.text == "Generated response text"
-        assert mock_model.generate_content.call_count == 2
+        assert mock_client.models.generate_content.call_count == 2
 
-    @patch("src.ai.client.GENAI_AVAILABLE", True)
-    @patch("src.ai.client.genai")
-    @patch("src.ai.client.get_config")
-    @patch("src.ai.client.get_api_key")
+    @patch("dlnai.ai.client.GENAI_AVAILABLE", True)
+    @patch("dlnai.ai.client.genai")
+    @patch("dlnai.ai.client.get_config")
+    @patch("dlnai.ai.client.get_api_key")
     def test_no_retry_on_auth_error(
         self,
         mock_get_api_key,
@@ -590,9 +590,9 @@ class TestRetryLogic:
         # Create auth error
         auth_exc = Exception("401 Unauthorized")
 
-        mock_model = MagicMock()
-        mock_model.generate_content.side_effect = auth_exc
-        mock_genai.GenerativeModel.return_value = mock_model
+        mock_client = MagicMock()
+        mock_client.models.generate_content.side_effect = auth_exc
+        mock_genai.Client.return_value = mock_client
 
         grant_consent_programmatic()
         client = AIClient(config=mock_config)
@@ -601,7 +601,7 @@ class TestRetryLogic:
             client.generate("Test prompt")
 
         # Should only try once (no retries for auth)
-        assert mock_model.generate_content.call_count == 1
+        assert mock_client.models.generate_content.call_count == 1
 
 
 # =============================================================================
@@ -612,10 +612,10 @@ class TestRetryLogic:
 class TestExceptionMapping:
     """Test exception mapping from SDK errors."""
 
-    @patch("src.ai.client.GENAI_AVAILABLE", True)
-    @patch("src.ai.client.genai")
-    @patch("src.ai.client.get_config")
-    @patch("src.ai.client.get_api_key")
+    @patch("dlnai.ai.client.GENAI_AVAILABLE", True)
+    @patch("dlnai.ai.client.genai")
+    @patch("dlnai.ai.client.get_config")
+    @patch("dlnai.ai.client.get_api_key")
     def test_map_rate_limit_error(
         self,
         mock_get_api_key,
@@ -635,10 +635,10 @@ class TestExceptionMapping:
         assert isinstance(mapped, AIRateLimitError)
         assert mapped.retriable is True
 
-    @patch("src.ai.client.GENAI_AVAILABLE", True)
-    @patch("src.ai.client.genai")
-    @patch("src.ai.client.get_config")
-    @patch("src.ai.client.get_api_key")
+    @patch("dlnai.ai.client.GENAI_AVAILABLE", True)
+    @patch("dlnai.ai.client.genai")
+    @patch("dlnai.ai.client.get_config")
+    @patch("dlnai.ai.client.get_api_key")
     def test_map_auth_error(
         self,
         mock_get_api_key,
@@ -658,10 +658,10 @@ class TestExceptionMapping:
         assert isinstance(mapped, AIAuthError)
         assert mapped.retriable is False
 
-    @patch("src.ai.client.GENAI_AVAILABLE", True)
-    @patch("src.ai.client.genai")
-    @patch("src.ai.client.get_config")
-    @patch("src.ai.client.get_api_key")
+    @patch("dlnai.ai.client.GENAI_AVAILABLE", True)
+    @patch("dlnai.ai.client.genai")
+    @patch("dlnai.ai.client.get_config")
+    @patch("dlnai.ai.client.get_api_key")
     def test_map_token_limit_error(
         self,
         mock_get_api_key,
@@ -690,9 +690,9 @@ class TestExceptionMapping:
 class TestRequireAIDecorator:
     """Test @require_ai decorator."""
 
-    @patch("src.ai.client.GENAI_AVAILABLE", True)
-    @patch("src.ai.client.get_config")
-    @patch("src.ai.client.get_api_key")
+    @patch("dlnai.ai.client.GENAI_AVAILABLE", True)
+    @patch("dlnai.ai.client.get_config")
+    @patch("dlnai.ai.client.get_api_key")
     def test_require_ai_passes_when_available(
         self,
         mock_get_api_key,
@@ -710,8 +710,8 @@ class TestRequireAIDecorator:
         result = my_function()
         assert result == "success"
 
-    @patch("src.ai.client.GENAI_AVAILABLE", True)
-    @patch("src.ai.client.get_config")
+    @patch("dlnai.ai.client.GENAI_AVAILABLE", True)
+    @patch("dlnai.ai.client.get_config")
     def test_require_ai_raises_when_disabled(
         self,
         mock_get_config,
@@ -738,10 +738,10 @@ class TestRequireAIDecorator:
 class TestGetClient:
     """Test get_client() factory function."""
 
-    @patch("src.ai.client.GENAI_AVAILABLE", True)
-    @patch("src.ai.client.genai")
-    @patch("src.ai.client.get_config")
-    @patch("src.ai.client.get_api_key")
+    @patch("dlnai.ai.client.GENAI_AVAILABLE", True)
+    @patch("dlnai.ai.client.genai")
+    @patch("dlnai.ai.client.get_config")
+    @patch("dlnai.ai.client.get_api_key")
     def test_get_client_success(
         self,
         mock_get_api_key,
@@ -758,7 +758,7 @@ class TestGetClient:
         assert isinstance(client, AIClient)
         assert client.is_available() is True
 
-    @patch("src.ai.client.GENAI_AVAILABLE", False)
+    @patch("dlnai.ai.client.GENAI_AVAILABLE", False)
     def test_get_client_sdk_missing(self):
         """Test client creation when SDK missing."""
         client = get_client()

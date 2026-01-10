@@ -12,10 +12,10 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from src.ai import LifeChapter, LifeStoryReport
+from dlnai.ai import LifeChapter, LifeStoryReport
 
 # Core Models
-from src.core.memory import (
+from dlnai.core.memory import (
     ConfidenceLevel,
     GeoPoint,
     Location,
@@ -24,7 +24,7 @@ from src.core.memory import (
     PersonTag,
     SourcePlatform,
 )
-from src.core.safety import (
+from dlnai.core.safety import (
     DetectionMethod,
     MemorySafetyState,
     SafetyAction,
@@ -32,7 +32,7 @@ from src.core.safety import (
     SafetyFlag,
     SafetySettings,
 )
-from src.core.timeline import DateRange
+from dlnai.core.timeline import DateRange
 
 # =============================================================================
 # Memory Model Tests

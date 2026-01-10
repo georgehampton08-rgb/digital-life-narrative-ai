@@ -10,14 +10,14 @@ from unittest.mock import MagicMock, patch
 import pytest
 from click.testing import CliRunner
 
-from organizer.cli import cli
-from organizer.models import (
+from dlnai.cli import organizer as cli
+from dlnai.core.models import (
     LifeStoryReport,
-    MediaItem,
+    Memory,
     MediaType,
-    ParseResult,
     SourcePlatform,
 )
+from dlnai.parsers.base import ParseResult, ParseStatus
 
 # =============================================================================
 # Fixtures
@@ -31,14 +31,14 @@ def runner() -> CliRunner:
 
 
 @pytest.fixture
-def mock_parse_result(sample_media_items: list[MediaItem]) -> ParseResult:
+def mock_parse_result(sample_media_items: list[Memory]) -> ParseResult:
     """Mock parse result for testing."""
     return ParseResult(
-        items=sample_media_items,
-        source_paths=[Path("/test")],
-        parse_errors=[],
-        stats={"total": len(sample_media_items)},
-        duration_seconds=1.0,
+        platform=SourcePlatform.GOOGLE_PHOTOS,
+        status=ParseStatus.SUCCESS,
+        memories=sample_media_items,
+        files_processed=len(sample_media_items),
+        parse_duration_seconds=1.0,
     )
 
 
@@ -174,12 +174,12 @@ class TestAnalyzeCommand:
         """Test analyze with --no-ai flag uses fallback."""
         output = tmp_path / "report"
 
-        with patch("organizer.cli.parse_all_sources") as mock_parse, patch(
-            "organizer.cli.detect_export_source"
-        ) as mock_detect, patch("organizer.cli.generate_report") as mock_report:
+        with patch("dlnai.cli.main.parse_all_sources") as mock_parse, patch(
+            "dlnai.cli.main.detect_export_source"
+        ) as mock_detect, patch("dlnai.cli.main.generate_report") as mock_report:
 
-            from organizer.detection import DetectionResult
-            from organizer.models import Confidence
+            from dlnai.detection import DetectionResult
+            from dlnai.core.models import ConfidenceLevel as Confidence
 
             # Mock detection
             mock_detect.return_value = [
@@ -194,11 +194,11 @@ class TestAnalyzeCommand:
             # Mock parsing
             mock_parse.return_value = ParseResult(
                 items=[
-                    MediaItem(
+                    Memory(
                         source_platform=SourcePlatform.SNAPCHAT,
                         media_type=MediaType.PHOTO,
                         file_path=Path("/test/photo.jpg"),
-                        timestamp=datetime(2020, 1, 1, tzinfo=timezone.utc),
+                        created_at=datetime(2020, 1, 1, tzinfo=timezone.utc),
                     )
                 ],
                 source_paths=[snapchat_export_dir],
@@ -235,12 +235,12 @@ class TestAnalyzeCommand:
         """Test analyze with --privacy-mode flag."""
         output = tmp_path / "report"
 
-        with patch("organizer.cli.parse_all_sources") as mock_parse, patch(
-            "organizer.cli.detect_export_source"
-        ) as mock_detect, patch("organizer.cli.generate_report") as mock_report:
+        with patch("dlnai.cli.main.parse_all_sources") as mock_parse, patch(
+            "dlnai.cli.main.detect_export_source"
+        ) as mock_detect, patch("dlnai.cli.main.generate_report") as mock_report:
 
-            from organizer.detection import DetectionResult
-            from organizer.models import Confidence
+            from dlnai.detection import DetectionResult
+            from dlnai.core.models import ConfidenceLevel as Confidence
 
             mock_detect.return_value = [
                 DetectionResult(
@@ -253,7 +253,7 @@ class TestAnalyzeCommand:
 
             mock_parse.return_value = ParseResult(
                 items=[
-                    MediaItem(
+                    Memory(
                         source_platform=SourcePlatform.SNAPCHAT,
                         media_type=MediaType.PHOTO,
                         file_path=Path("/test/photo.jpg"),
@@ -295,7 +295,7 @@ class TestConfigCommand:
 
     def test_config_show(self, runner: CliRunner) -> None:
         """Test organizer config show displays config."""
-        with patch("organizer.cli.get_config") as mock_config:
+        with patch("dlnai.cli.main.get_config") as mock_config:
             mock_config.return_value = MagicMock(
                 ai=MagicMock(
                     model_name="gemini-1.5-pro",
@@ -319,8 +319,8 @@ class TestConfigCommand:
 
     def test_config_set_key_prompts(self, runner: CliRunner) -> None:
         """Test organizer config set-key prompts for input."""
-        with patch("organizer.cli.get_config") as mock_config, patch(
-            "organizer.cli.APIKeyManager"
+        with patch("dlnai.cli.main.get_config") as mock_config, patch(
+            "dlnai.cli.main.APIKeyManager"
         ) as mock_manager:
 
             mock_config.return_value = MagicMock(
@@ -341,7 +341,7 @@ class TestConfigCommand:
 
     def test_config_set_key_empty_input(self, runner: CliRunner) -> None:
         """Test set-key with empty input."""
-        with patch("organizer.cli.get_config") as mock_config:
+        with patch("dlnai.cli.main.get_config") as mock_config:
             mock_config.return_value = MagicMock(
                 key_storage_backend=MagicMock(value="environment"),
             )
@@ -356,7 +356,7 @@ class TestConfigCommand:
         config_file = tmp_path / "config.yaml"
         config_file.write_text("test: value")
 
-        with patch("organizer.cli.AppConfig") as mock_app_config:
+        with patch("dlnai.cli.main.AppConfig") as mock_app_config:
             mock_app_config.get_default_config_path.return_value = config_file
 
             result = runner.invoke(cli, ["config", "reset"], input="y\n")
@@ -365,7 +365,7 @@ class TestConfigCommand:
 
     def test_config_set_value(self, runner: CliRunner) -> None:
         """Test organizer config set KEY VALUE."""
-        with patch("organizer.cli.get_config") as mock_config:
+        with patch("dlnai.cli.main.get_config") as mock_config:
             mock_cfg = MagicMock()
             mock_cfg.ai = MagicMock()
             mock_cfg.ai.model_name = "gemini-1.5-pro"
@@ -406,17 +406,17 @@ class TestOrganizeCommand:
         """Test organize with --dry-run."""
         output = tmp_path / "organized"
 
-        with patch("organizer.cli.parse_all_sources") as mock_parse, patch(
-            "organizer.cli.MediaOrganizer"
+        with patch("dlnai.cli.main.parse_all_sources") as mock_parse, patch(
+            "dlnai.cli.main.MediaOrganizer"
         ) as mock_organizer:
 
             mock_parse.return_value = ParseResult(
                 items=[
-                    MediaItem(
+                    Memory(
                         source_platform=SourcePlatform.LOCAL,
                         media_type=MediaType.PHOTO,
                         file_path=local_photos_dir / "photo.jpg",
-                        timestamp=datetime(2020, 6, 15, tzinfo=timezone.utc),
+                        created_at=datetime(2020, 6, 15, tzinfo=timezone.utc),
                     )
                 ],
                 source_paths=[local_photos_dir],
@@ -491,14 +491,14 @@ class TestFallbackMessaging:
         """Test analyze shows clear fallback warning."""
         output = tmp_path / "report"
 
-        with patch("organizer.cli.parse_all_sources") as mock_parse, patch(
-            "organizer.cli.detect_export_source"
-        ) as mock_detect, patch("organizer.cli.generate_report") as mock_report, patch(
-            "organizer.cli.check_api_key_configured"
+        with patch("dlnai.cli.main.parse_all_sources") as mock_parse, patch(
+            "dlnai.cli.main.detect_export_source"
+        ) as mock_detect, patch("dlnai.cli.main.generate_report") as mock_report, patch(
+            "dlnai.cli.main.check_api_key_configured"
         ) as mock_key_check:
 
-            from organizer.detection import DetectionResult
-            from organizer.models import Confidence
+            from dlnai.detection import DetectionResult
+            from dlnai.core.models import ConfidenceLevel as Confidence
 
             mock_detect.return_value = [
                 DetectionResult(
@@ -511,11 +511,11 @@ class TestFallbackMessaging:
 
             mock_parse.return_value = ParseResult(
                 items=[
-                    MediaItem(
+                    Memory(
                         source_platform=SourcePlatform.SNAPCHAT,
                         media_type=MediaType.PHOTO,
                         file_path=Path("/test/photo.jpg"),
-                        timestamp=datetime(2020, 1, 1, tzinfo=timezone.utc),
+                        created_at=datetime(2020, 1, 1, tzinfo=timezone.utc),
                     )
                 ],
                 source_paths=[snapchat_export_dir],
@@ -554,12 +554,12 @@ class TestFallbackMessaging:
         """Test fallback mode suggests running config set-key."""
         output = tmp_path / "report"
 
-        with patch("organizer.cli.parse_all_sources") as mock_parse, patch(
-            "organizer.cli.detect_export_source"
-        ) as mock_detect, patch("organizer.cli.generate_report") as mock_report:
+        with patch("dlnai.cli.main.parse_all_sources") as mock_parse, patch(
+            "dlnai.cli.main.detect_export_source"
+        ) as mock_detect, patch("dlnai.cli.main.generate_report") as mock_report:
 
-            from organizer.detection import DetectionResult
-            from organizer.models import Confidence
+            from dlnai.detection import DetectionResult
+            from dlnai.core.models import ConfidenceLevel as Confidence
 
             mock_detect.return_value = [
                 DetectionResult(
@@ -572,7 +572,7 @@ class TestFallbackMessaging:
 
             mock_parse.return_value = ParseResult(
                 items=[
-                    MediaItem(
+                    Memory(
                         source_platform=SourcePlatform.SNAPCHAT,
                         media_type=MediaType.PHOTO,
                         file_path=Path("/test.jpg"),

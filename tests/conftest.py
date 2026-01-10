@@ -19,18 +19,26 @@ from unittest.mock import MagicMock
 import pytest
 from PIL import Image
 
-from src.ai.client import AIRateLimitError, AIResponse, AIUnavailableError, StructuredAIResponse
-
-# AI Models
-from src.ai import (
+from dlnai.ai.client import (
+    AIRateLimitError,
     AIResponse,
-    LifeChapter,
-    LifeStoryReport,
+    AIUnavailableError,
     StructuredResponse,
 )
 
+# AI Models
+from dlnai.ai import (
+    LifeChapter,
+    LifeStoryReport,
+)
+
+from dlnai.core.models import (
+    DataGap,
+    PlatformBehaviorInsight,
+)
+
 # Core Models
-from src.core.memory import (
+from dlnai.core.memory import (
     GeoPoint,
     Location,
     MediaType,
@@ -40,7 +48,7 @@ from src.core.memory import (
 )
 
 # Safety Models
-from src.core.safety import (
+from dlnai.core.safety import (
     DetectionMethod,
     MemorySafetyState,
     SafetyAction,
@@ -49,6 +57,7 @@ from src.core.safety import (
     SafetySettings,
     SensitivityLevel,
 )
+from dlnai.parsers.base import ParseResult, ParseStatus
 
 # =============================================================================
 # Helper Functions
@@ -443,6 +452,18 @@ def mock_ai_client() -> MagicMock:
     mock = MagicMock()
     mock.is_available.return_value = True
 
+    # Mock configuration for analyzer compatibility
+    mock_config = MagicMock()
+    mock_config.ai.warn_on_large_dataset_threshold = 500
+    mock_config.ai.show_cost_estimates = True
+    mock_config.ai.vision_cost_per_image_usd = 0.001
+    mock_config.ai.narrative_cost_per_1k_tokens_usd = 0.00375
+
+    from dlnai.config import STANDARD_MODE_CONFIG
+    mock_config.ai.get_depth_config.return_value = STANDARD_MODE_CONFIG
+
+    mock._config = mock_config
+
     def intelligent_generate(prompt, **kwargs):
         prompt_lower = prompt.lower()
         text = "Generic AI response stub."
@@ -482,7 +503,7 @@ def mock_ai_client() -> MagicMock:
         elif "narrative" in prompt_lower:
             data = generate_mock_narrative_response()
 
-        return StructuredAIResponse(
+        return StructuredResponse(
             data=data,
             raw_text=json.dumps(data),
             model="gemini-1.5-pro",
@@ -566,7 +587,7 @@ def sample_life_report() -> LifeStoryReport:
     return LifeStoryReport(
         generated_at=datetime.now(timezone.utc),
         ai_model="gemini-1.5-pro",
-        total_memories_analyzed=150,
+        total_memories=150,
         executive_summary="This narrative provides a comprehensive look at a five-year journey of transformation. It captures the essential shift from early exploration to finding meaningful stability and community connection.\n\nThrough the lens of over 150 moments, we see an individual who values both adventure and roots, consistently documenting the transitions that define their story.",
         chapters=chapters,
         platform_insights=[
@@ -613,7 +634,7 @@ def sample_fallback_report() -> LifeStoryReport:
     return LifeStoryReport(
         generated_at=datetime.now(timezone.utc),
         ai_model="none (fallback mode)",
-        total_memories_analyzed=50,
+        total_memories=50,
         executive_summary="This report was generated in fallback mode because AI analysis was unavailable. It provides a simple chronological grouping of your memories by year.",
         chapters=chapters,
         is_fallback=True,
@@ -689,3 +710,18 @@ def memories_with_safety_flags(sample_memories) -> list[tuple[Memory, MemorySafe
         results.append((m, s))
 
     return results
+@pytest.fixture
+def sample_parse_result(sample_memories: list[Memory]) -> ParseResult:
+    """Create a sample ParseResult for testing."""
+    memories = sample_memories[:3]
+    for i, m in enumerate(memories):
+        m.source_path = Path(f"/path/to/media_{i}.jpg")
+        
+    return ParseResult(
+        platform=SourcePlatform.SNAPCHAT,
+        status=ParseStatus.SUCCESS,
+        memories=memories,
+        files_processed=5,
+        files_skipped=2,
+        parse_duration_seconds=2.5,
+    )

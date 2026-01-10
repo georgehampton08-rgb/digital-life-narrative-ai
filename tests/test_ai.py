@@ -10,11 +10,11 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from organizer.models import (
+from dlnai.ai import LifeChapter, LifeStoryReport
+from dlnai.core.models import (
     AnalysisConfig,
-    Confidence,
-    LifeStoryReport,
-    MediaItem,
+    ConfidenceLevel,
+    Memory,
     MediaType,
     SourcePlatform,
 )
@@ -80,10 +80,10 @@ class TestAIClient:
 
     def test_client_initialization_with_key(self) -> None:
         """Test AIClient initialization with API key."""
-        with patch("organizer.ai.client.genai") as mock_genai:
+        with patch("dlnai.ai.client.genai") as mock_genai:
             mock_genai.GenerativeModel.return_value = MagicMock()
 
-            from organizer.ai.client import AIClient
+            from dlnai.ai.client import AIClient
 
             client = AIClient(api_key="test-key-123")
 
@@ -92,20 +92,20 @@ class TestAIClient:
 
     def test_client_initialization_without_key_raises(self) -> None:
         """Test AIClient raises error without API key configured."""
-        with patch("organizer.ai.client.genai"):
-            with patch("organizer.config.APIKeyManager") as mock_manager:
+        with patch("dlnai.ai.client.genai"):
+            with patch("dlnai.config.APIKeyManager") as mock_manager:
                 mock_manager_instance = MagicMock()
                 mock_manager_instance.retrieve_key.return_value = None
                 mock_manager.return_value = mock_manager_instance
 
-                from organizer.ai.client import AIClient, APIKeyMissingError
+                from dlnai.ai.client import AIClient, APIKeyMissingError
 
                 with pytest.raises(APIKeyMissingError):
                     AIClient()
 
     def test_generate_calls_model(self) -> None:
         """Test generate() calls model correctly."""
-        with patch("organizer.ai.client.genai") as mock_genai:
+        with patch("dlnai.ai.client.genai") as mock_genai:
             # Setup mock response
             mock_response = MagicMock()
             mock_response.text = "Generated text response"
@@ -117,7 +117,7 @@ class TestAIClient:
             mock_model.generate_content.return_value = mock_response
             mock_genai.GenerativeModel.return_value = mock_model
 
-            from organizer.ai.client import AIClient
+            from dlnai.ai.client import AIClient
 
             client = AIClient(api_key="test-key")
 
@@ -128,7 +128,7 @@ class TestAIClient:
 
     def test_generate_json_parses_response(self) -> None:
         """Test generate_json() parses JSON response."""
-        with patch("organizer.ai.client.genai") as mock_genai:
+        with patch("dlnai.ai.client.genai") as mock_genai:
             mock_response = MagicMock()
             mock_response.text = json.dumps({"key": "value"})
             mock_response.usage_metadata = MagicMock()
@@ -139,7 +139,7 @@ class TestAIClient:
             mock_model.generate_content.return_value = mock_response
             mock_genai.GenerativeModel.return_value = mock_model
 
-            from organizer.ai.client import AIClient
+            from dlnai.ai.client import AIClient
 
             client = AIClient(api_key="test-key")
 
@@ -149,7 +149,7 @@ class TestAIClient:
 
     def test_retry_on_rate_limit(self) -> None:
         """Test retry logic for rate limits."""
-        with patch("organizer.ai.client.genai") as mock_genai:
+        with patch("dlnai.ai.client.genai") as mock_genai:
             from google.api_core.exceptions import ResourceExhausted
 
             mock_response = MagicMock()
@@ -166,7 +166,7 @@ class TestAIClient:
             ]
             mock_genai.GenerativeModel.return_value = mock_model
 
-            from organizer.ai.client import AIClient
+            from dlnai.ai.client import AIClient
 
             client = AIClient(api_key="test-key")
             client._max_retries = 2
@@ -178,12 +178,12 @@ class TestAIClient:
 
     def test_error_mapping(self) -> None:
         """Test error handling and exception mapping."""
-        with patch("organizer.ai.client.genai") as mock_genai:
+        with patch("dlnai.ai.client.genai") as mock_genai:
             mock_model = MagicMock()
             mock_model.generate_content.side_effect = Exception("Unknown error")
             mock_genai.GenerativeModel.return_value = mock_model
 
-            from organizer.ai.client import AIClient, AIRequestError
+            from dlnai.ai.client import AIClient, AIRequestError
 
             client = AIClient(api_key="test-key")
 
@@ -229,8 +229,8 @@ class TestLifeStoryAnalyzer:
     @pytest.fixture
     def analyzer(self, mock_client: MagicMock) -> LifeStoryAnalyzer:
         """Create analyzer with mock client."""
-        from organizer.ai.life_analyzer import LifeStoryAnalyzer
-        from organizer.config import PrivacySettings
+        from dlnai.ai.life_analyzer import LifeStoryAnalyzer
+        from dlnai.config import PrivacySettings
 
         return LifeStoryAnalyzer(
             client=mock_client,
@@ -241,7 +241,7 @@ class TestLifeStoryAnalyzer:
     def test_prepare_items_for_ai_privacy(
         self,
         analyzer: LifeStoryAnalyzer,
-        sample_media_items: list[MediaItem],
+        sample_media_items: list[Memory],
     ) -> None:
         """Test _prepare_items_for_ai() privacy filtering."""
         prepared = analyzer._prepare_items_for_ai(sample_media_items[:5])
@@ -256,7 +256,7 @@ class TestLifeStoryAnalyzer:
     def test_generate_temporal_summary(
         self,
         analyzer: LifeStoryAnalyzer,
-        sample_media_items: list[MediaItem],
+        sample_media_items: list[Memory],
     ) -> None:
         """Test _generate_temporal_summary() statistics."""
         summary = analyzer._generate_temporal_summary(sample_media_items)
@@ -270,7 +270,7 @@ class TestLifeStoryAnalyzer:
     def test_sample_items_for_prompt(
         self,
         analyzer: LifeStoryAnalyzer,
-        sample_media_items: list[MediaItem],
+        sample_media_items: list[Memory],
     ) -> None:
         """Test _sample_items_for_prompt() selection logic."""
         # Sample fewer than total
@@ -279,7 +279,7 @@ class TestLifeStoryAnalyzer:
         assert len(sampled) == 10
 
         # Should maintain temporal order
-        timestamps = [i.timestamp for i in sampled if i.timestamp]
+        timestamps = [i.created_at for i in sampled if i.created_at]
         sorted_timestamps = sorted(timestamps)
         assert timestamps == sorted_timestamps
 
@@ -289,7 +289,7 @@ class TestLifeStoryAnalyzer:
     ) -> None:
         """Test sampling returns all items when count is small."""
         items = [
-            MediaItem(
+            Memory(
                 source_platform=SourcePlatform.LOCAL,
                 media_type=MediaType.PHOTO,
                 file_path=Path(f"/photo_{i}.jpg"),
@@ -303,7 +303,7 @@ class TestLifeStoryAnalyzer:
     def test_analyze_full_flow(
         self,
         analyzer: LifeStoryAnalyzer,
-        sample_media_items: list[MediaItem],
+        sample_media_items: list[Memory],
     ) -> None:
         """Test analyze() full flow with mocked AI responses."""
         # Run async analyze
@@ -317,7 +317,7 @@ class TestLifeStoryAnalyzer:
     def test_analyze_with_progress_callback(
         self,
         analyzer: LifeStoryAnalyzer,
-        sample_media_items: list[MediaItem],
+        sample_media_items: list[Memory],
     ) -> None:
         """Test analyze() calls progress callback."""
         progress_calls = []
@@ -334,12 +334,12 @@ class TestLifeStoryAnalyzer:
 
     def test_analyze_handles_ai_errors(
         self,
-        sample_media_items: list[MediaItem],
+        sample_media_items: list[Memory],
     ) -> None:
         """Test analyze() handles AI errors gracefully."""
-        from organizer.ai.client import AIRequestError
-        from organizer.ai.life_analyzer import LifeStoryAnalyzer
-        from organizer.config import PrivacySettings
+        from dlnai.ai.client import AIRequestError
+        from dlnai.ai.life_analyzer import LifeStoryAnalyzer
+        from dlnai.config import PrivacySettings
 
         # Create client that fails
         failing_client = MagicMock()
@@ -371,14 +371,14 @@ class TestFallbackAnalyzer:
     @pytest.fixture
     def analyzer(self) -> FallbackAnalyzer:
         """Create FallbackAnalyzer instance."""
-        from organizer.ai.fallback import FallbackAnalyzer
+        from dlnai.ai.fallback import FallbackAnalyzer
 
         return FallbackAnalyzer()
 
     def test_produces_valid_report(
         self,
         analyzer: FallbackAnalyzer,
-        sample_media_items: list[MediaItem],
+        sample_media_items: list[Memory],
     ) -> None:
         """Test FallbackAnalyzer produces valid report."""
         report = analyzer.analyze(sample_media_items)
@@ -389,7 +389,7 @@ class TestFallbackAnalyzer:
     def test_is_fallback_mode_true(
         self,
         analyzer: FallbackAnalyzer,
-        sample_media_items: list[MediaItem],
+        sample_media_items: list[Memory],
     ) -> None:
         """Test is_fallback_mode is True."""
         report = analyzer.analyze(sample_media_items)
@@ -400,7 +400,7 @@ class TestFallbackAnalyzer:
     def test_statistics_accurate(
         self,
         analyzer: FallbackAnalyzer,
-        sample_media_items: list[MediaItem],
+        sample_media_items: list[Memory],
     ) -> None:
         """Test statistics are accurate."""
         report = analyzer.analyze(sample_media_items)
@@ -413,7 +413,7 @@ class TestFallbackAnalyzer:
     def test_yearly_chapters(
         self,
         analyzer: FallbackAnalyzer,
-        sample_media_items: list[MediaItem],
+        sample_media_items: list[Memory],
     ) -> None:
         """Test that chapters are organized by year."""
         report = analyzer.analyze(sample_media_items)
@@ -425,18 +425,18 @@ class TestFallbackAnalyzer:
     def test_fallback_chapter_low_confidence(
         self,
         analyzer: FallbackAnalyzer,
-        sample_media_items: list[MediaItem],
+        sample_media_items: list[Memory],
     ) -> None:
         """Test fallback chapters have LOW confidence."""
         report = analyzer.analyze(sample_media_items)
 
         for chapter in report.chapters:
-            assert chapter.confidence == Confidence.LOW
+            assert chapter.confidence == ConfidenceLevel.LOW
 
     def test_empty_platform_insights(
         self,
         analyzer: FallbackAnalyzer,
-        sample_media_items: list[MediaItem],
+        sample_media_items: list[Memory],
     ) -> None:
         """Test fallback has no platform insights (requires AI)."""
         report = analyzer.analyze(sample_media_items)
@@ -456,7 +456,7 @@ class TestFallbackAnalyzer:
     def test_fallback_summary_contains_cta(
         self,
         analyzer: FallbackAnalyzer,
-        sample_media_items: list[MediaItem],
+        sample_media_items: list[Memory],
     ) -> None:
         """Test fallback summary contains call-to-action."""
         report = analyzer.analyze(sample_media_items)
@@ -479,10 +479,10 @@ class TestAIIntegration:
 
     def test_generate_fallback_report_function(
         self,
-        sample_media_items: list[MediaItem],
+        sample_media_items: list[Memory],
     ) -> None:
         """Test generate_fallback_report convenience function."""
-        from organizer.ai.fallback import generate_fallback_report
+        from dlnai.ai.fallback import generate_fallback_report
 
         report = generate_fallback_report(sample_media_items)
 
@@ -493,7 +493,7 @@ class TestAIIntegration:
         sample_life_report: LifeStoryReport,
     ) -> None:
         """Test is_fallback_mode utility function."""
-        from organizer.ai.fallback import is_fallback_mode
+        from dlnai.ai.fallback import is_fallback_mode
 
         # Regular report
         assert is_fallback_mode(sample_life_report) is False

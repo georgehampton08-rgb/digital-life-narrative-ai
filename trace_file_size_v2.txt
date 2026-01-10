@@ -1,0 +1,275 @@
+============================= test session starts =============================
+platform win32 -- Python 3.12.2, pytest-9.0.2, pluggy-1.6.0 -- C:\Users\georg\AppData\Local\Programs\Python\Python312\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\georg\digital-life-narrative-ai
+configfile: pyproject.toml
+plugins: anyio-4.12.1
+collecting ... collected 1 item
+
+tests/test_ai_and_safety.py::TestLifeStoryAnalyzer::test_analyzer_progress_callback FAILED [100%]
+
+================================== FAILURES ===================================
+____________ TestLifeStoryAnalyzer.test_analyzer_progress_callback ____________
+
+self = <test_ai_and_safety.TestLifeStoryAnalyzer object at 0x0000024038371D30>
+sample_memories = [Memory(id='75913ae8-4202-427e-8e96-7a81473da5d1', content_hash=None, metadata_hash=None, source_platform=<SourcePlatf...ally_analyzed=False, location=None, people=[], tags=[], album_name=None, original_metadata={}, parse_warnings=[]), ...]
+mock_ai_client = <MagicMock id='2474844299984'>
+
+    def test_analyzer_progress_callback(
+        self, sample_memories: list[Memory], mock_ai_client: MagicMock
+    ) -> None:
+        """Progress callback is called during analysis."""
+        progress_calls = []
+    
+        def callback(progress):
+            progress_calls.append(progress)
+    
+        analyzer = LifeStoryAnalyzer(client=mock_ai_client)
+>       analyzer.analyze(sample_memories, progress_callback=callback)
+
+tests\test_ai_and_safety.py:257: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <src.ai.analyzer.LifeStoryAnalyzer object at 0x0000024038370DA0>
+memories = [Memory(id='75913ae8-4202-427e-8e96-7a81473da5d1', content_hash=None, metadata_hash=None, source_platform=<SourcePlatf...ally_analyzed=False, location=None, people=[], tags=[], album_name=None, original_metadata={}, parse_warnings=[]), ...]
+config = None
+progress_callback = <function TestLifeStoryAnalyzer.test_analyzer_progress_callback.<locals>.callback at 0x0000024038375800>
+
+    def analyze(
+        self,
+        memories: list[Memory],
+        config: AnalysisConfig | None = None,
+        progress_callback: Callable[[AnalysisProgress], None] | None = None,
+    ) -> LifeStoryReport:
+        """Analyze memories and generate a life story report.
+    
+        Args:
+            memories: List of Memory objects to analyze.
+            config: Analysis configuration (depth, models, etc.)
+            progress_callback: Optional callback for progress updates.
+    
+        Returns:
+            Complete LifeStoryReport with chapters and narratives.
+        """
+        analysis_config = config or AnalysisConfig()
+        start_time = datetime.now()
+        self.debug_analysis_log = [] # Reset for new run
+    
+        def report_progress(stage: str, percent: float, message: str = "", chapter: str | None = None) -> None:
+            if progress_callback:
+                progress = AnalysisProgress(
+                    stage=stage,
+                    percent=percent,
+                    message=message,
+                    chapter=chapter,
+                    elapsed_seconds=(datetime.now() - start_time).total_seconds()
+                )
+                progress_callback(progress)
+    
+        report_progress("Initializing", 0.0)
+    
+        # Validate input
+        if len(memories) < self.MIN_MEMORIES_FOR_ANALYSIS:
+            raise InsufficientDataError(
+                f"Need at least {self.MIN_MEMORIES_FOR_ANALYSIS} memories, got {len(memories)}"
+            )
+    
+        # Check against warning threshold
+        ai_cfg = self._ai_config
+        threshold = getattr(ai_cfg, "warn_on_large_dataset_threshold", 500)
+        if not isinstance(threshold, (int, float)):
+            threshold = 500
+    
+        if len(memories) > threshold:
+            self._logger.warning(
+                f"Large dataset detected ({len(memories)} memories). "
+                f"Analysis may take longer and sampling will be more aggressive."
+            )
+    
+        # Build timeline
+        report_progress("Building Timeline", 5.0)
+        timeline = Timeline(memories)
+        stats = timeline.compute_statistics()
+    
+        # Phase 1: Granular Analytics (Platform/Gaps/Patterns)
+        report_progress("Deep Analytical Pass", 15.0)
+        platform_insights = self._analyze_platforms(timeline, analysis_config)
+        data_gaps = self._analyze_gaps(timeline, analysis_config)
+        behavioral_patterns = self._detect_patterns(timeline, analysis_config)
+    
+        # Phase 2: Chapter Detection
+        report_progress("Detecting Life Chapters", 30.0)
+        try:
+            chapters = self._detect_chapters(timeline, analysis_config)
+        except Exception as e:
+            self._logger.error(f"Chapter detection failed: {e}")
+            chapters = self._create_fallback_chapters(timeline)
+    
+        # Phase 3: Visual Enrichment (Multimodal)
+        # Now we sample smartly PER CHAPTER
+        report_progress("Visual Intelligence Analysis", 50.0)
+>       visual_stats = self._enrich_visual_context(memories, chapters, analysis_config)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+src\ai\analyzer.py:257: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <src.ai.analyzer.LifeStoryAnalyzer object at 0x0000024038370DA0>
+memories = [Memory(id='75913ae8-4202-427e-8e96-7a81473da5d1', content_hash=None, metadata_hash=None, source_platform=<SourcePlatf...ally_analyzed=False, location=None, people=[], tags=[], album_name=None, original_metadata={}, parse_warnings=[]), ...]
+chapters = [LifeChapter(title='Year 2010', start_date=datetime.date(2010, 1, 1), end_date=datetime.date(2010, 12, 31), themes=[],...='low', dominant_scenes=[], dominant_vibes=[], recurring_motifs=[], representative_images=[], thumbnail_paths=[]), ...]
+config = AnalysisConfig(depth=<DepthMode.DEEP: 'deep'>, vision_model='gemini-2.0-flash-exp', narrative_model='gemini-1.5-pro', ...clude_gap_analysis=True, detect_patterns=True, narrative_style='warm', privacy_level='standard', fail_on_partial=False)
+
+    def _enrich_visual_context(
+        self,
+        memories: list[Memory],
+        chapters: list[LifeChapter],
+        config: AnalysisConfig
+    ) -> VisualAnalysisStats:
+        """Analyze sampled images to extract visual intelligence (vibe, scenes, motifs)."""
+        # Prepare depth config
+        from src.config import DEPTH_MODE_CONFIGS, STANDARD_MODE_CONFIG
+        depth_cfg = DEPTH_MODE_CONFIGS.get(config.depth.value.lower(), STANDARD_MODE_CONFIG)
+    
+        if config.depth == DepthMode.QUICK and not config.max_images:
+             # Just basic stats if very quick
+             return VisualAnalysisStats(total_images_available=len(memories))
+    
+        # 1. Plan Sampling using our new architecture
+>       sampling_plan = plan_visual_sampling(memories, chapters, config)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+src\ai\analyzer.py:347: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+memories = [Memory(id='75913ae8-4202-427e-8e96-7a81473da5d1', content_hash=None, metadata_hash=None, source_platform=<SourcePlatf...ally_analyzed=False, location=None, people=[], tags=[], album_name=None, original_metadata={}, parse_warnings=[]), ...]
+chapters = [LifeChapter(title='Year 2010', start_date=datetime.date(2010, 1, 1), end_date=datetime.date(2010, 12, 31), themes=[],...='low', dominant_scenes=[], dominant_vibes=[], recurring_motifs=[], representative_images=[], thumbnail_paths=[]), ...]
+config = AnalysisConfig(depth=<DepthMode.DEEP: 'deep'>, vision_model='gemini-2.0-flash-exp', narrative_model='gemini-1.5-pro', ...clude_gap_analysis=True, detect_patterns=True, narrative_style='warm', privacy_level='standard', fail_on_partial=False)
+
+    def plan_visual_sampling(
+        memories: List[Memory],
+        chapters: List[LifeChapter],
+        config: AnalysisConfig
+    ) -> SamplingResult:
+        """Orchestrates the full visual sampling plan across all chapters."""
+        # 1. Setup
+        from src.config import DEPTH_MODE_CONFIGS, STANDARD_MODE_CONFIG
+        # Deeply nested access to global config
+        # Note: In a real environment, this might be get_config().ai.get_depth_config()
+        # Here we assume it's passed or accessible.
+        ai_cfg = DEPTH_MODE_CONFIGS.get(config.depth.value.lower(), STANDARD_MODE_CONFIG)
+        global_cap = config.max_images or 120
+    
+        logger = logging.getLogger("src.ai.sampling")
+        logger.info(f"Planning visual sampling for {len(chapters)} chapters with global cap {global_cap}")
+    
+        budget = BudgetManager(global_cap, chapters)
+        allocations = budget.allocate_budget()
+    
+        strategy = SamplingStrategy(ai_cfg, global_cap, logger)
+    
+        sampled_map: Dict[str, List[Memory]] = {}
+        total_sampled = 0
+        chapters_reduced = []
+        bursts_compressed = 0
+        duplicates_skipped = 0
+    
+        # 2. Assign memories to chapters (simple overlap)
+        for i, chapter in enumerate(chapters):
+            cid = str(i)
+            chapter_mems = [
+                m for m in memories
+                if m.created_at and chapter.start_date <= m.created_at.date() <= chapter.end_date
+            ]
+    
+            target = allocations.get(cid, ai_cfg.images_per_chapter_target)
+    
+            # Log before stats
+            pre_count = len(chapter_mems)
+    
+            # Sample
+>           selected = strategy.sample_for_chapter(chapter_mems, target)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+src\ai\sampling.py:327: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <src.ai.sampling.SamplingStrategy object at 0x00000240383A3830>
+memories = [Memory(id='75913ae8-4202-427e-8e96-7a81473da5d1', content_hash=None, metadata_hash=None, source_platform=<SourcePlatf... visually_analyzed=False, location=None, people=[], tags=[], album_name=None, original_metadata={}, parse_warnings=[])]
+target_count = 17
+
+    def sample_for_chapter(self, memories: List[Memory], target_count: int) -> List[Memory]:
+        """Sample images for a specific chapter respecting constraints."""
+        if not memories:
+            return []
+    
+        # 1. Deduplicate
+>       dupes = self.detect_duplicates(memories)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+src\ai\sampling.py:242: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <src.ai.sampling.SamplingStrategy object at 0x00000240383A3830>
+memories = [Memory(id='75913ae8-4202-427e-8e96-7a81473da5d1', content_hash=None, metadata_hash=None, source_platform=<SourcePlatf... visually_analyzed=False, location=None, people=[], tags=[], album_name=None, original_metadata={}, parse_warnings=[])]
+
+    def detect_duplicates(self, memories: List[Memory]) -> Set[str]:
+        """Identify exact and near-duplicates to exclude."""
+        to_exclude = set()
+        seen_hashes = set()
+        seen_stamps = {} # (timestamp, filesize) -> id
+    
+        for m in memories:
+            # Exact hash match
+            if m.content_hash:
+                if m.content_hash in seen_hashes:
+                    to_exclude.add(m.id)
+                    continue
+                seen_hashes.add(m.content_hash)
+    
+            # Heuristic match: same second and similar size
+            if m.created_at:
+>               stamp_key = (m.created_at.replace(microsecond=0), m.file_size)
+                                                                  ^^^^^^^^^^^
+
+src\ai\sampling.py:222: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = Memory(id='75913ae8-4202-427e-8e96-7a81473da5d1', content_hash=None, metadata_hash=None, source_platform=<SourcePlatfo..., visually_analyzed=False, location=None, people=[], tags=[], album_name=None, original_metadata={}, parse_warnings=[])
+item = 'file_size'
+
+    def __getattr__(self, item: str) -> Any:
+        private_attributes = object.__getattribute__(self, '__private_attributes__')
+        if item in private_attributes:
+            attribute = private_attributes[item]
+            if hasattr(attribute, '__get__'):
+                return attribute.__get__(self, type(self))  # type: ignore
+    
+            try:
+                # Note: self.__pydantic_private__ cannot be None if self.__private_attributes__ has items
+                return self.__pydantic_private__[item]  # type: ignore
+            except KeyError as exc:
+                raise AttributeError(f'{type(self).__name__!r} object has no attribute {item!r}') from exc
+        else:
+            # `__pydantic_extra__` can fail to be set if the model is not yet fully initialized.
+            # See `BaseModel.__repr_args__` for more details
+            try:
+                pydantic_extra = object.__getattribute__(self, '__pydantic_extra__')
+            except AttributeError:
+                pydantic_extra = None
+    
+            if pydantic_extra and item in pydantic_extra:
+                return pydantic_extra[item]
+            else:
+                if hasattr(self.__class__, item):
+                    return super().__getattribute__(item)  # Raises AttributeError if appropriate
+                else:
+                    # this is the current error
+>                   raise AttributeError(f'{type(self).__name__!r} object has no attribute {item!r}')
+E                   AttributeError: 'Memory' object has no attribute 'file_size'
+
+..\AppData\Local\Programs\Python\Python312\Lib\site-packages\pydantic\main.py:1026: AttributeError
+------------------------------ Captured log call ------------------------------
+ERROR    src.ai.analyzer.LifeStoryAnalyzer:analyzer.py:251 Chapter detection failed: 'PrivacyConfig' object has no attribute 'level'
+=========================== short test summary info ===========================
+FAILED tests/test_ai_and_safety.py::TestLifeStoryAnalyzer::test_analyzer_progress_callback - AttributeError: 'Memory' object has no attribute 'file_size'
+============================== 1 failed in 0.18s ==============================

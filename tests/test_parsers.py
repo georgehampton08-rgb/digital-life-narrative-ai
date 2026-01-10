@@ -9,8 +9,14 @@ from pathlib import Path
 
 import pytest
 
-from organizer.models import SourcePlatform
-from organizer.parsers import BaseParser, ParserRegistry, parse_all_sources
+from dlnai.core.models import (
+    AnalysisConfig,
+    Memory,
+    MediaType,
+    SourcePlatform,
+)
+from dlnai.parsers import BaseParser, ParserRegistry, ParseResult
+from dlnai.parsers.pipeline import run_pipeline, PipelineConfig
 
 # =============================================================================
 # ParserRegistry Tests
@@ -63,9 +69,9 @@ class TestBaseParserHelpers:
     @pytest.fixture
     def parser(self) -> BaseParser:
         """Get a concrete parser for testing helpers."""
-        from organizer.parsers.local import LocalPhotosParser
+        from dlnai.parsers.local_files import LocalFilesParser
 
-        return LocalPhotosParser()
+        return LocalFilesParser()
 
     def test_parse_datetime_iso(self, parser: BaseParser) -> None:
         """Test parsing ISO datetime strings."""
@@ -141,7 +147,7 @@ class TestSnapchatParser:
 
     @pytest.fixture
     def parser(self) -> SnapchatParser:
-        from organizer.parsers.snapchat import SnapchatParser
+        from dlnai.parsers.snapchat import SnapchatParser
 
         return SnapchatParser()
 
@@ -173,10 +179,10 @@ class TestSnapchatParser:
         """Test parse() extracts memories correctly."""
         result = parser.parse(snapchat_export_dir)
 
-        assert len(result.items) > 0
+        assert len(result.memories) > 0
 
         # Check all items are from Snapchat
-        for item in result.items:
+        for item in result.memories:
             assert item.source_platform == SourcePlatform.SNAPCHAT
 
     def test_parse_handles_missing_files(
@@ -207,7 +213,7 @@ class TestGooglePhotosParser:
 
     @pytest.fixture
     def parser(self) -> GooglePhotosParser:
-        from organizer.parsers.google_photos import GooglePhotosParser
+        from dlnai.parsers.google_photos import GooglePhotosParser
 
         return GooglePhotosParser()
 
@@ -228,7 +234,7 @@ class TestGooglePhotosParser:
         result = parser.parse(google_photos_export_dir)
 
         # Should find items with metadata from sidecars
-        items_with_location = [i for i in result.items if i.location]
+        items_with_location = [i for i in result.memories if i.location]
         assert len(items_with_location) > 0, "Should extract location from sidecar"
 
     def test_metadata_extraction_from_json(
@@ -240,7 +246,7 @@ class TestGooglePhotosParser:
         result = parser.parse(google_photos_export_dir)
 
         # Should have items with timestamps
-        items_with_ts = [i for i in result.items if i.timestamp]
+        items_with_ts = [i for i in result.memories if i.created_at]
         assert len(items_with_ts) > 0
 
     def test_parse_empty_directory(
@@ -253,7 +259,7 @@ class TestGooglePhotosParser:
         empty_dir.mkdir()
 
         result = parser.parse(empty_dir)
-        assert len(result.items) == 0
+        assert len(result.memories) == 0
 
 
 # =============================================================================
@@ -266,9 +272,9 @@ class TestLocalPhotosParser:
 
     @pytest.fixture
     def parser(self) -> LocalPhotosParser:
-        from organizer.parsers.local import LocalPhotosParser
+        from dlnai.parsers.local_files import LocalFilesParser
 
-        return LocalPhotosParser()
+        return LocalFilesParser()
 
     def test_can_parse_always_true(
         self,
@@ -287,7 +293,7 @@ class TestLocalPhotosParser:
         result = parser.parse(local_photos_dir)
 
         # Should extract dates from filenames
-        items_with_ts = [i for i in result.items if i.timestamp]
+        items_with_ts = [i for i in result.memories if i.created_at]
         assert len(items_with_ts) > 0
 
     def test_skips_hidden_files(
@@ -306,7 +312,7 @@ class TestLocalPhotosParser:
         result = parser.parse(photos_dir)
 
         # Should only find visible file
-        filenames = [i.file_path.name for i in result.items]
+        filenames = [i.source_path.name for i in result.memories]
         assert ".hidden.jpg" not in filenames
 
     def test_handles_non_image_files(
@@ -325,59 +331,53 @@ class TestLocalPhotosParser:
         result = parser.parse(photos_dir)
 
         # Should only find image
-        extensions = [i.file_path.suffix.lower() for i in result.items]
+        extensions = [i.source_path.suffix.lower() for i in result.memories]
         assert ".txt" not in extensions
 
 
 # =============================================================================
-# parse_all_sources Tests
+# run_pipeline Tests
 # =============================================================================
 
 
-class TestParseAllSources:
-    """Tests for parse_all_sources() aggregation."""
+class TestRunPipeline:
+    """Tests for run_pipeline() aggregation."""
 
     def test_aggregates_multiple_sources(
         self,
         snapchat_export_dir: Path,
         google_photos_export_dir: Path,
     ) -> None:
-        """Test that parse_all_sources aggregates from multiple directories."""
-        from organizer.models import AnalysisConfig
+        """Test that run_pipeline aggregates from multiple directories."""
+        from dlnai.core.models import AnalysisConfig
 
-        result = parse_all_sources(
+        result = run_pipeline(
             [snapchat_export_dir, google_photos_export_dir],
-            config=AnalysisConfig(),
+            config=PipelineConfig(),
         )
 
         # Should have items from both sources
-        all_items = []
-        for r in result:
-            all_items.extend(r.items)
+        all_items = result.memories
             
         platforms = {item.source_platform for item in all_items}
         assert len(platforms) >= 1  # At least one platform
 
     def test_handles_empty_sources(self, tmp_path: Path) -> None:
         """Test handling of empty source directories."""
-        from organizer.models import AnalysisConfig
-
         empty1 = tmp_path / "empty1"
         empty1.mkdir()
         empty2 = tmp_path / "empty2"
         empty2.mkdir()
 
-        result = parse_all_sources([empty1, empty2], config=AnalysisConfig())
+        result = run_pipeline([empty1, empty2], config=PipelineConfig())
 
         assert result is not None
-        # May have items from LOCAL parser as fallback
+        assert hasattr(result, "memories")
 
     def test_collects_errors(self, tmp_path: Path) -> None:
         """Test that parse errors are collected."""
-        from organizer.models import AnalysisConfig
-
         tmp_path / "does_not_exist"
 
         # Should not crash, but may collect errors
-        result = parse_all_sources([tmp_path], config=AnalysisConfig())
+        result = run_pipeline([tmp_path], config=PipelineConfig())
         assert result is not None
